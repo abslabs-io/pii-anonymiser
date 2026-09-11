@@ -1,0 +1,24 @@
+{
+  "experiment": "PII Lab",
+  "model": "Qwen3-0.6B-q4f32_1-MLC",
+  "runtime": "WebLLM 0.2.85",
+  "timestamp": "2026-09-10T18:33:15.243Z",
+  "environment": {
+    "actualBrowserVersionFromPlaywright": "148.0.7778.96",
+    "gpu": "SwiftShader software WebGPU, no shader-f16",
+    "headless": true,
+    "note": "The original export's user-agent was overridden by Playwright's Desktop Chrome descriptor (Chrome 153 on Windows). Use the actual executable version above; subsequent runner versions no longer override the user-agent."
+  },
+  "fixtureSet": "v1",
+  "promptVersion": "v1",
+  "temperature": 0,
+  "thinking": false,
+  "complete": false,
+  "results": [
+    {
+      "name": "Contact details",
+      "error": "The model timed out. Unload it and try again with a shorter passage."
+    }
+  ],
+  "conclusion": "Real model loading succeeded. The first extraction exceeded the 120-second limit. No completed extraction or accuracy score was obtained. This is not a desktop hardware GPU performance measurement."
+}

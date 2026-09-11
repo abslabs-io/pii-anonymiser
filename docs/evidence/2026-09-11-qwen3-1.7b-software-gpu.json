@@ -1,0 +1,32 @@
+{
+  "experiment": "PII Lab",
+  "requestedModel": "Qwen3-1.7B-q4f16_1-MLC",
+  "runtimeModel": "Qwen3-1.7B-q4f32_1-MLC",
+  "runtime": "WebLLM 0.2.85",
+  "date": "2026-09-11",
+  "environment": {
+    "browser": "Chromium 148.0.7778.96",
+    "gpu": "SwiftShader software WebGPU, no shader-f16",
+    "headless": true,
+    "modelProfileSizeAfterDownload": "approximately 1.9 GB including browser profile and caches"
+  },
+  "fixtureSet": "v1",
+  "promptVersion": "v2",
+  "thinking": false,
+  "complete": false,
+  "results": [
+    {
+      "name": "Contact details",
+      "error": "The model timed out. Unload it and try again with a shorter passage.",
+      "timeoutMs": 120000,
+      "rawContent": null
+    }
+  ],
+  "runnerDevelopment": {
+    "attempts": 4,
+    "observation": "The selected model loaded on every attempt and the first fixture timed out on every attempt. The first run downloaded the model; later runs reused the persistent cache.",
+    "artifactIssue": "After each timeout, persistent Chromium did not emit or settle the programmatic Blob download as Playwright expected. The app had preserved the incomplete row. The runner now captures the JSON Blob directly and uses a DOM click; simulated complete and runtime-failure exports cover the capture path.",
+    "interpretation": "These were repeated while repairing the runner, not four predeclared independent quality trials."
+  },
+  "conclusion": "Qwen3-1.7B loads successfully with software WebGPU but cannot complete the first fixture within 120 seconds in this environment. This is performance and runner evidence, not a measurement of model quality or representative desktop GPU latency. A hardware-GPU run is still required for comparison with the 0.6B desktop result."
+}

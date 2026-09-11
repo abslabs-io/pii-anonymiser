@@ -1,0 +1,96 @@
+{
+  "experiment": "PII Lab",
+  "source": "Reviewed summary of the complete app export supplied by the project author. The export contained only the five built-in invented fixtures and no workbench text.",
+  "model": "Qwen3-0.6B-q4f16_1-MLC",
+  "runtime": "WebLLM 0.2.85",
+  "timestamp": "2026-09-11T16:07:49.096Z",
+  "environment": {
+    "browserUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+    "gpu": "unknown",
+    "note": "The frozen Windows user-agent token does not distinguish Windows 10 from Windows 11. No GPU details were included in the app export."
+  },
+  "fixtureSet": "v1",
+  "promptVersion": "v2",
+  "responseParserVersion": "webllm-empty-thinking-v1",
+  "temperature": 0,
+  "thinking": false,
+  "complete": true,
+  "summary": {
+    "expectedSpans": 11,
+    "detectedSpans": 24,
+    "correctSpans": 8,
+    "missedSpans": 3,
+    "extraSpans": 16,
+    "precision": 0.3333333333333333,
+    "recall": 0.7272727272727273,
+    "f1": 0.45714285714285713,
+    "totalDurationMs": 56625.59999999404,
+    "meanDurationMs": 11325.119999998808,
+    "medianDurationMs": 9368.40000000596,
+    "outputTokens": 505,
+    "strictPass": false
+  },
+  "results": [
+    {
+      "name": "Contact details",
+      "score": {
+        "expected": 4,
+        "detected": 6,
+        "correct": 4,
+        "missed": 0,
+        "extra": 2
+      },
+      "durationMs": 14875.09999999404,
+      "extraDetections": ["report as DATE_OF_BIRTH", "Friday as DATE_OF_BIRTH"]
+    },
+    {
+      "name": "Address & date of birth",
+      "score": {
+        "expected": 3,
+        "detected": 3,
+        "correct": 3,
+        "missed": 0,
+        "extra": 0
+      },
+      "durationMs": 9368.40000000596
+    },
+    {
+      "name": "Account reference",
+      "score": {
+        "expected": 2,
+        "detected": 1,
+        "correct": 0,
+        "missed": 2,
+        "extra": 1
+      },
+      "durationMs": 5725,
+      "missedDetections": ["Maya Patel as PERSON", "12345678 as ACCOUNT"],
+      "extraDetections": ["The complete account-holder sentence as ID"]
+    },
+    {
+      "name": "No personal information",
+      "score": {
+        "expected": 0,
+        "detected": 13,
+        "correct": 0,
+        "missed": 0,
+        "extra": 13
+      },
+      "durationMs": 23063.40000000596,
+      "note": "Eleven distinct ordinary substrings were returned. Repeated occurrences of The and is expanded this to thirteen replacement spans."
+    },
+    {
+      "name": "Instructions inside text",
+      "score": {
+        "expected": 2,
+        "detected": 1,
+        "correct": 1,
+        "missed": 1,
+        "extra": 0
+      },
+      "durationMs": 3593.699999988079,
+      "missedDetections": ["Priya Shah as PERSON"]
+    }
+  ],
+  "conclusion": "Prompt v2 fixed the copied-placeholder failure and produced a perfect address/date-of-birth case, but Qwen3-0.6B failed the diagnostic quality gate because it missed PII and replaced many ordinary spans. Test Qwen3-1.7B with the unchanged prompt and fixtures before another prompt revision."
+}

@@ -1,0 +1,167 @@
+{
+  "experiment": "PII Lab",
+  "source": "Reviewed summary of the five-case app export supplied by the project author after the WebLLM 0.2.82 rollback. The export contained only built-in invented fixtures and no workbench text.",
+  "model": "Qwen3-1.7B-q4f16_1-MLC",
+  "runtime": "WebLLM 0.2.82",
+  "timestamp": "2026-09-11T17:46:26.207Z",
+  "environment": {
+    "browserUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+    "gpu": "unknown",
+    "note": "The frozen Windows user-agent token does not distinguish Windows 10 from Windows 11. No GPU details were included in the app export."
+  },
+  "fixtureSet": "v1",
+  "promptVersion": "v2",
+  "responseParserVersion": "webllm-empty-thinking-v1",
+  "temperature": 0,
+  "thinking": false,
+  "appComplete": false,
+  "processedCases": 5,
+  "completedModelResponses": 5,
+  "runtimeFailures": 0,
+  "validationFailures": 1,
+  "scoringMethod": "Four cases use scores exported by the app. The contact-details case was reviewed from its completed raw entity list: exact duplicate entities were deduplicated, matching literals were expanded to their source occurrences, and the two unmatched literals were counted as extra detections. This yields a comparable occurrence-level diagnostic score while retaining the case as an anonymisation failure.",
+  "appScoredCases": {
+    "cases": 4,
+    "expectedSpans": 7,
+    "detectedSpans": 12,
+    "correctSpans": 6,
+    "missedSpans": 1,
+    "extraSpans": 6,
+    "precision": 0.5,
+    "recall": 0.8571428571428571,
+    "f1": 0.631578947368421
+  },
+  "reviewedAllCases": {
+    "expectedSpans": 11,
+    "detectedSpans": 17,
+    "correctSpans": 9,
+    "missedSpans": 2,
+    "extraSpans": 8,
+    "precision": 0.5294117647058824,
+    "recall": 0.8181818181818182,
+    "f1": 0.6428571428571428,
+    "totalDurationMs": 89717.60000002384,
+    "meanDurationMs": 17943.52000000477,
+    "medianDurationMs": 17597.19999998808,
+    "outputTokens": 300,
+    "strictPass": false
+  },
+  "endToEndOutput": {
+    "method": "A rejected document produces no partial anonymised output, so the contact-details case contributes zero correct or extra output replacements and all four expected occurrences are missed.",
+    "expectedSpans": 11,
+    "outputSpans": 12,
+    "correctSpans": 6,
+    "missedSpans": 5,
+    "extraSpans": 6,
+    "precision": 0.5,
+    "recall": 0.5454545454545454,
+    "f1": 0.5217391304347826,
+    "documentsWithOutput": 4,
+    "documents": 5
+  },
+  "comparisonWithQwen3_0_6BPromptV2": {
+    "correctSpans": {
+      "qwen3_0_6B": 8,
+      "qwen3_1_7B": 9
+    },
+    "missedSpans": {
+      "qwen3_0_6B": 3,
+      "qwen3_1_7B": 2
+    },
+    "extraSpans": {
+      "qwen3_0_6B": 16,
+      "qwen3_1_7B": 8
+    },
+    "f1": {
+      "qwen3_0_6B": 0.45714285714285713,
+      "qwen3_1_7B": 0.6428571428571428
+    },
+    "totalDurationMs": {
+      "qwen3_0_6B": 56625.59999999404,
+      "qwen3_1_7B": 89717.60000002384
+    },
+    "timingNote": "The 1.7B run took 1.5844 times the total inference time in these single desktop runs. Runtime versions differed: the 0.6B evidence used WebLLM 0.2.85 and the 1.7B evidence used 0.2.82."
+  },
+  "results": [
+    {
+      "name": "Contact details",
+      "appStatus": "validation failure",
+      "reviewedScore": {
+        "expected": 4,
+        "detected": 5,
+        "correct": 3,
+        "missed": 1,
+        "extra": 2
+      },
+      "durationMs": 26117.59999999404,
+      "outputTokens": 87,
+      "correctDetections": [
+        "Both occurrences of Alice Morgan as PERSON",
+        "+44 7700 900123 as PHONE"
+      ],
+      "missedDetections": ["alice.morgan@example.com as EMAIL"],
+      "extraDetections": [
+        "email@example.com as EMAIL (not in source)",
+        "DATE_OF_BIRTH as DATE_OF_BIRTH (not in source)"
+      ],
+      "note": "The exact model response matched the earlier 1.7B contact-details response despite the runtime rollback. The duplicate Alice Morgan entity is harmless under the replacement policy."
+    },
+    {
+      "name": "Address & date of birth",
+      "score": {
+        "expected": 3,
+        "detected": 3,
+        "correct": 3,
+        "missed": 0,
+        "extra": 0
+      },
+      "durationMs": 18109.40000000596,
+      "outputTokens": 62
+    },
+    {
+      "name": "Account reference",
+      "score": {
+        "expected": 2,
+        "detected": 3,
+        "correct": 1,
+        "missed": 1,
+        "extra": 2
+      },
+      "durationMs": 16025.100000023842,
+      "outputTokens": 55,
+      "missedDetections": ["12345678 as ACCOUNT"],
+      "extraDetections": ["12345678 as ID", "£240 as DATE_OF_BIRTH"]
+    },
+    {
+      "name": "No personal information",
+      "score": {
+        "expected": 0,
+        "detected": 4,
+        "correct": 0,
+        "missed": 0,
+        "extra": 4
+      },
+      "durationMs": 17597.19999998808,
+      "outputTokens": 61,
+      "extraDetections": [
+        "Friday as DATE_OF_BIRTH",
+        "£2,400 as ID",
+        "12 as ID",
+        "3 as ID"
+      ]
+    },
+    {
+      "name": "Instructions inside text",
+      "score": {
+        "expected": 2,
+        "detected": 2,
+        "correct": 2,
+        "missed": 0,
+        "extra": 0
+      },
+      "durationMs": 11868.300000011921,
+      "outputTokens": 35
+    }
+  ],
+  "conclusion": "The WebLLM rollback resolved the observed second-call infrastructure failure: all five model responses completed. The reviewed raw detections were better than the 0.6B baseline, especially for false positives and the instruction-in-text case. Under the application's atomic rejection policy, however, only 6/11 expected occurrence spans appeared in anonymised output because the failed contact document produced no output at all. The model also miscategorised PII and redacted ordinary values. It is useful experimental evidence, not a safe anonymiser."
+}
