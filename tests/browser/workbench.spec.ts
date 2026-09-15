@@ -117,13 +117,57 @@ async function simulate(
         }, durationMs: diagnostics.durationMs, outputTokens: diagnostics.outputTokens, diagnostics};
       }
       async dispose() {
+        window.__piiLabDisposeCalls = (window.__piiLabDisposeCalls ?? 0) + 1;
         await new Promise(resolve => setTimeout(resolve, ${mode === 'slow-unload' ? 500 : 0}));
       }
     }`,
     });
   });
-  await page.goto('/');
+  await page.goto('/#/webllm');
 }
+
+test('welcome screen lists available and planned experiments', async ({
+  page,
+}) => {
+  await page.goto('/');
+
+  await expect(
+    page.getByRole('heading', { name: 'Browser-local PII experiments' }),
+  ).toBeVisible();
+  await expect(page.getByRole('link', { name: /WebLLM/ })).toHaveAttribute(
+    'href',
+    '#/webllm',
+  );
+  await expect(
+    page.getByRole('heading', { name: 'Transformers.js' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Gemini Nano' }),
+  ).toBeVisible();
+  await expect(page.getByText('Planned', { exact: true })).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Load model' })).toHaveCount(0);
+});
+
+test('leaving the WebLLM experiment unloads its model', async ({ page }) => {
+  await simulate(page);
+  await page.getByRole('button', { name: 'Load model' }).click();
+  await expect(page.getByRole('status')).toContainText('Ready on device');
+
+  await page.getByRole('link', { name: 'PII Lab home' }).click();
+
+  await expect(
+    page.getByRole('heading', { name: 'Browser-local PII experiments' }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as typeof window & { __piiLabDisposeCalls?: number })
+            .__piiLabDisposeCalls ?? 0,
+      ),
+    )
+    .toBe(1);
+});
 
 test('loads on demand, replaces exact spans, and clears stale results on edits', async ({
   page,
@@ -413,7 +457,7 @@ test('unsupported browser shows guidance without starting a model', async ({
   await page.addInitScript(() => {
     delete (Navigator.prototype as unknown as Record<string, unknown>).gpu;
   });
-  await page.goto('/');
+  await page.goto('/#/webllm');
   await expect(page.getByRole('alert')).toContainText('does not expose WebGPU');
   await expect(page.getByRole('button', { name: 'Load model' })).toBeDisabled();
 });

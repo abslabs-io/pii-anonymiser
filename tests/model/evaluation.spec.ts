@@ -83,7 +83,7 @@ test(`evaluate ${selectedModel} on the browser GPU`, async ({}, testInfo) => {
       .catch(() => {});
   }, 15_000);
   try {
-    await page.goto('/#/evaluation');
+    await page.goto('/#/webllm/evaluation');
     await page.getByLabel('Model', { exact: true }).selectOption(selectedModel);
     await expect(
       page.getByRole('button', { name: 'Load model' }),

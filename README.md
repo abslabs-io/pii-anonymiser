@@ -15,9 +15,9 @@ npm ci
 npm run dev
 ```
 
-Open <http://127.0.0.1:5173>. No API key, environment file, or inference backend is needed.
+Open <http://127.0.0.1:5173>. The welcome screen lists the available and planned browser-local experiments. No API key, environment file, or inference backend is needed.
 
-1. Choose a model and click **Load model**. The first visit downloads its weights and runtime.
+1. Open the **WebLLM** experiment, choose a model, and click **Load model**. The first visit downloads its weights and runtime.
 2. Paste a short passage or select an invented sample.
 3. Click **Anonymise text** and review the highlighted detections and tokenised output.
 4. Use **Evaluation** to run five labelled examples sequentially and export a JSON report.
@@ -126,7 +126,7 @@ npm run build
 npm run preview
 ```
 
-Serve `dist/` on an HTTPS static host. Page navigation uses hashes, so no server route rewrites are required. The initial bundle excludes the lazily loaded WebLLM engine; the build reports large engine chunks because the inference runtime includes compiled code. GPU inference requires HTTPS or localhost. This first WebGPU implementation does not need the cross-origin-isolation headers that some multithreaded WASM approaches require.
+Serve `dist/` on an HTTPS static host. Page navigation uses hashes, so no server route rewrites are required: `#/` lists experiments, `#/webllm` opens the current workbench, and `#/webllm/evaluation` opens its evaluation. The initial bundle excludes the lazily loaded WebLLM engine; the build reports large engine chunks because the inference runtime includes compiled code. GPU inference requires HTTPS or localhost. This first WebGPU implementation does not need the cross-origin-isolation headers that some multithreaded WASM approaches require.
 
 ## Repository map
 
@@ -134,7 +134,8 @@ Serve `dist/` on an HTTPS static host. Page navigation uses hashes, so no server
 | ---------------------------- | --------------------------------------------------------------------- |
 | `src/core/`                  | Pure span replacement, output validation, fixtures, and scoring       |
 | `src/inference/`             | Detector interface, prompt, model settings, WebLLM adapter and worker |
-| `src/App.tsx`                | Model lifecycle controls, workbench, and evaluation UI                |
+| `src/App.tsx`                | Welcome screen and lightweight experiment routing                     |
+| `src/experiments/`           | Runtime-specific experiment pages and their lifecycle UI              |
 | `tests/browser/`             | Browser workflows with simulated inference                            |
 | `tests/model/`               | Opt-in real model evaluation                                          |
 | `docs/experiment-journal.md` | Decisions, progress, evidence, and article material                   |

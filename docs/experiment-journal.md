@@ -202,6 +202,16 @@ The end-to-end anonymised output tells a stricter story. The rejected contact do
 
 **Comparison:** Against the single 0.6B prompt-v2 run, the reviewed raw 1.7B detections improved correct spans from 8 to 9, reduced misses from 3 to 2, and halved extras from 16 to 8; detection-level F1 rose from 45.7% to 64.3%. Its end-to-end F1 was only 52.2% after atomic rejection. It took 1.58 times as long overall. Timing is not a controlled runtime comparison because 0.6B used WebLLM 0.2.85 and 1.7B used 0.2.82. The larger model is directionally better on this tiny set, but neither model/prompt combination is reliable enough for unattended PII anonymisation.
 
+## 2026-09-15 — Separate experiment pages and welcome screen
+
+**Decision:** Make the application entry point a compact experiment index. WebLLM now owns `#/webllm` and `#/webllm/evaluation`; Transformers.js and Gemini Nano appear as planned experiments without active links. Hash routing keeps the static-host deployment model and avoids adding a routing dependency.
+
+The WebLLM workbench and evaluation remain one mounted experiment so their selected model and in-memory results survive navigation between those two views. Navigating back to the experiment index unmounts the WebLLM page and force-disposes its detector. This makes the one-engine-at-a-time lifecycle boundary explicit before more runtimes are added.
+
+The previous large marketing hero was removed. The index now briefly introduces the broader browser-local comparison, while the WebLLM page has only a short technical description. No inference, prompt, model, fixture, replacement, or evaluation behaviour changed.
+
+**Verification:** `npm run format` and `npm run check` passed, including the production build and all 43 unit/lifecycle tests. All 15 Playwright browser tests passed with the simulated detector, including new checks for experiment availability, the nested routes, and forced disposal when leaving WebLLM. These remain application tests, not model-quality evidence; a real-model run was not repeated because the inference implementation did not change.
+
 ## Article outline (working)
 
 1. Why try PII detection in a browser?
