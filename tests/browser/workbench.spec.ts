@@ -13,7 +13,9 @@ async function simulate(
     | 'invalid'
     | 'invalid-json'
     | 'reported-first-failure'
-    | 'runtime-error' = 'normal',
+    | 'runtime-error'
+    | 'load-memory-error' = 'normal',
+  runtime: 'webllm' | 'transformersjs' = 'webllm',
 ) {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'gpu', { value: {}, configurable: true });
@@ -36,26 +38,28 @@ async function simulate(
       writable: true,
     });
   });
-  await page.route(/\/src\/inference\/webllm\.ts(?:\?.*)?$/, async (route) => {
-    // Vite appends a timestamp query to transformed imports during development.
-    // Keep the simulated error class identical to the app's imported class.
-    const transformed = await route.fetch();
-    const source = await transformed.text();
-    const typesModule =
-      source.match(
-        /from\s+['"](\/src\/inference\/types\.ts(?:\?[^'"]*)?)['"]/,
-      )?.[1] ?? '/src/inference/types.ts';
+  const modulePattern = new RegExp(`/src/inference/${runtime}\\.ts(?:\\?.*)?$`);
+  await page.route(modulePattern, async (route) => {
     await route.fulfill({
       contentType: 'application/javascript',
-      body: `import { ModelResponseError } from ${JSON.stringify(typesModule)};
-    export class WebLlmDetector {
+      body: `class ModelResponseError extends Error {
+      constructor(message, diagnostics) {
+        super(message);
+        this.name = 'ModelResponseError';
+        this.diagnostics = diagnostics;
+      }
+    }
+    export class ${runtime === 'webllm' ? 'WebLlmDetector' : 'TransformersJsDetector'} {
       calls = 0;
       model = null;
       async load(model, progress) {
         this.model = model;
         progress({progress: 0.5, text: 'Simulated model download'});
         await new Promise(resolve => setTimeout(resolve, ${mode === 'slow-load' ? 60_000 : 30}));
-        return model;
+        if (${JSON.stringify(mode)} === 'load-memory-error') {
+          throw "Can't create a session. ERROR_CODE: 6, ERROR_MESSAGE: std::bad_alloc";
+        }
+        return ${runtime === 'webllm' ? 'model' : 'model + "#q4f16"'};
       }
       async detect(text) {
         this.calls++;
@@ -64,7 +68,7 @@ async function simulate(
           : ${mode === 'slow-run' ? 60_000 : 30};
         await new Promise(resolve => setTimeout(resolve, delay));
         if (${JSON.stringify(mode)} === 'runtime-error') {
-          throw 'Error: Simulated WebLLM worker failure';
+          throw ${JSON.stringify(`Error: Simulated ${runtime === 'webllm' ? 'WebLLM' : 'Transformers.js'} worker failure`)};
         }
         const reportedRaw = '<think>\\n\\n</think>\\n\\n' + JSON.stringify({entities: [
           {text: 'Alice Morgan', category: 'PERSON'},
@@ -123,7 +127,7 @@ async function simulate(
     }`,
     });
   });
-  await page.goto('/#/webllm');
+  await page.goto(`/#/${runtime}`);
 }
 
 test('welcome screen lists available and planned experiments', async ({
@@ -139,12 +143,12 @@ test('welcome screen lists available and planned experiments', async ({
     '#/webllm',
   );
   await expect(
-    page.getByRole('heading', { name: 'Transformers.js' }),
-  ).toBeVisible();
+    page.getByRole('link', { name: /Transformers\.js/ }),
+  ).toHaveAttribute('href', '#/transformersjs');
   await expect(
     page.getByRole('heading', { name: 'Gemini Nano' }),
   ).toBeVisible();
-  await expect(page.getByText('Planned', { exact: true })).toHaveCount(2);
+  await expect(page.getByText('Planned', { exact: true })).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'Load model' })).toHaveCount(0);
 });
 
@@ -167,6 +171,77 @@ test('leaving the WebLLM experiment unloads its model', async ({ page }) => {
       ),
     )
     .toBe(1);
+});
+
+test('Transformers.js offers both Qwen sizes and reuses the same workflow', async ({
+  page,
+}) => {
+  await simulate(page, 'normal', 'transformersjs');
+  const model = page.getByLabel('Model', { exact: true });
+  await expect(model.locator('option')).toHaveCount(2);
+  await expect(model.locator('option').nth(0)).toHaveText('Qwen3 · 0.6B');
+  await expect(model.locator('option').nth(1)).toHaveText('Qwen3 · 1.7B');
+  await expect(
+    page.getByText(/Transformers\.js 4\.2\.0 · ONNX q4f16/),
+  ).toBeVisible();
+
+  await model.selectOption('onnx-community/Qwen3-1.7B-ONNX');
+  await page.getByRole('button', { name: 'Load model' }).click();
+  await expect(page.getByRole('status')).toContainText('Ready on device');
+  await page.getByRole('button', { name: 'Anonymise text' }).click();
+  await expect(page.getByTestId('output')).toHaveText(
+    'Hi, I’m [PERSON_1].\nPlease email [EMAIL_1] or call [PHONE_1].\n\n[PERSON_1] will send the report on Friday.',
+  );
+
+  await page.getByRole('link', { name: '02 Evaluation' }).click();
+  await page.getByRole('button', { name: 'Run 5 examples' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Export results' }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Export results' }).click();
+  const report = JSON.parse(
+    (await page.evaluate(
+      () =>
+        (window as typeof window & { __piiLabEvaluation?: string })
+          .__piiLabEvaluation,
+    ))!,
+  );
+  expect(report.runtime).toBe('Transformers.js 4.2.0');
+  expect(report.model).toBe('onnx-community/Qwen3-1.7B-ONNX#q4f16');
+  expect(report.generationConstraint).toBe('prompt-only');
+  expect(report.responseParserVersion).toBe('transformersjs-json-fence-v2');
+  expect(report.promptVersion).toBe('v2');
+  expect(report.fixtures).toHaveLength(5);
+
+  await page.getByRole('link', { name: 'PII Lab home' }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as typeof window & { __piiLabDisposeCalls?: number })
+            .__piiLabDisposeCalls ?? 0,
+      ),
+    )
+    .toBe(1);
+});
+
+test('Transformers.js explains a known model memory load failure', async ({
+  page,
+}) => {
+  await simulate(page, 'load-memory-error', 'transformersjs');
+  await page
+    .getByLabel('Model', { exact: true })
+    .selectOption('onnx-community/Qwen3-1.7B-ONNX');
+  await page.getByRole('button', { name: 'Load model' }).click();
+
+  const alert = page.getByRole('alert');
+  await expect(alert).toContainText('could not fit in the memory');
+  await expect(alert).toContainText('current Chrome or Edge');
+  await expect(alert).toContainText('use the 0.6B model');
+  await expect(alert).toContainText('Technical detail:');
+  await expect(alert).toContainText('std::bad_alloc');
+  await expect(page.getByRole('status')).toContainText('Not loaded');
+  await expect(page.getByRole('button', { name: 'Load model' })).toBeEnabled();
 });
 
 test('loads on demand, replaces exact spans, and clears stale results on edits', async ({

@@ -21,19 +21,28 @@ type Report = {
   runner?: unknown;
 };
 
-const selectedModel = process.env.MODEL_ID ?? 'Qwen3-0.6B-q4f16_1-MLC';
+const modelRuntime =
+  process.env.MODEL_RUNTIME === 'transformersjs' ? 'transformersjs' : 'webllm';
+const selectedModel =
+  process.env.MODEL_ID ??
+  (modelRuntime === 'transformersjs'
+    ? 'onnx-community/Qwen3-0.6B-ONNX'
+    : 'Qwen3-0.6B-q4f16_1-MLC');
 const softwareGpu = process.env.MODEL_SOFTWARE_GPU === '1';
 const headless = process.env.MODEL_HEADLESS === '1';
 const strict = process.env.MODEL_STRICT === '1';
 const profileDirectory = resolve(
-  process.env.MODEL_PROFILE_DIR ?? '.model-cache/chromium',
+  process.env.MODEL_PROFILE_DIR ??
+    (modelRuntime === 'webllm'
+      ? '.model-cache/chromium'
+      : '.model-cache/transformersjs-chromium'),
 );
 const reportDirectory = resolve(
   process.env.MODEL_REPORT_DIR ?? 'model-evaluation-results',
 );
 
 // Real engine, real model download. Deliberately separate from default CI.
-test(`evaluate ${selectedModel} on the browser GPU`, async ({}, testInfo) => {
+test(`evaluate ${selectedModel} through ${modelRuntime} on the browser GPU`, async ({}, testInfo) => {
   await mkdir(profileDirectory, { recursive: true });
   const context = await chromium.launchPersistentContext(profileDirectory, {
     acceptDownloads: true,
@@ -83,7 +92,7 @@ test(`evaluate ${selectedModel} on the browser GPU`, async ({}, testInfo) => {
       .catch(() => {});
   }, 15_000);
   try {
-    await page.goto('/#/webllm/evaluation');
+    await page.goto(`/#/${modelRuntime}/evaluation`);
     await page.getByLabel('Model', { exact: true }).selectOption(selectedModel);
     await expect(
       page.getByRole('button', { name: 'Load model' }),

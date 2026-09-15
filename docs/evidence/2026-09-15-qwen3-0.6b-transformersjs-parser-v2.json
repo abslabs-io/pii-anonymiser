@@ -1,0 +1,156 @@
+{
+  "experiment": "PII Lab",
+  "source": "Reviewed summary of the parser-v2 five-case app export supplied by the project author. The export contained only fixture set v1 and no workbench text; the raw browser report is not committed.",
+  "model": "onnx-community/Qwen3-0.6B-ONNX#q4f16",
+  "runtime": "Transformers.js 4.2.0",
+  "timestamp": "2026-09-15T10:25:36.279Z",
+  "environment": {
+    "browserUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:154.0) Gecko/20100101 Firefox/154.0",
+    "gpu": "unknown",
+    "note": "The Windows user-agent token does not distinguish Windows 10 from Windows 11. No GPU details were included. The runtime model confirms shader-f16 availability."
+  },
+  "fixtureSet": "v1",
+  "promptVersion": "v2",
+  "responseParserVersion": "transformersjs-json-fence-v2",
+  "generationConstraint": "prompt-only",
+  "temperature": 0,
+  "decodingNote": "The app export normalizes the deterministic setting as temperature 0. The Transformers.js worker uses greedy generation with do_sample false, so temperature is not consulted.",
+  "thinking": false,
+  "appComplete": false,
+  "processedCases": 5,
+  "completedModelResponses": 5,
+  "runtimeFailures": 0,
+  "responseValidationFailures": 1,
+  "exactSpanValidationFailures": 1,
+  "documentsWithOutput": 3,
+  "appScoredCases": {
+    "cases": 3,
+    "expectedSpans": 5,
+    "detectedSpans": 9,
+    "correctSpans": 2,
+    "missedSpans": 3,
+    "extraSpans": 7,
+    "precision": 0.2222222222222222,
+    "recall": 0.4,
+    "f1": 0.2857142857142857
+  },
+  "reviewedAllCases": {
+    "method": "The three accepted cases use app scores. The two completed rejected responses use the same diagnostic method as parser v1: returned items are expanded to exact source occurrences, with unmatched literals and unsupported-category items counted as extras.",
+    "expectedSpans": 11,
+    "detectedSpans": 20,
+    "correctSpans": 6,
+    "missedSpans": 5,
+    "extraSpans": 14,
+    "precision": 0.3,
+    "recall": 0.5454545454545454,
+    "f1": 0.3870967741935484,
+    "totalDurationMs": 71519,
+    "meanDurationMs": 14303.8,
+    "medianDurationMs": 14156,
+    "outputTokens": 531,
+    "strictPass": false
+  },
+  "endToEndOutput": {
+    "method": "Rejected documents contribute no replacements. Scores from the three published documents are evaluated against all eleven expected fixture occurrences.",
+    "expectedSpans": 11,
+    "outputSpans": 9,
+    "correctSpans": 2,
+    "missedSpans": 9,
+    "extraSpans": 7,
+    "precision": 0.2222222222222222,
+    "recall": 0.18181818181818182,
+    "f1": 0.2,
+    "documentsWithOutput": 3,
+    "documents": 5
+  },
+  "comparisonWithParserV1": {
+    "sameRawResponses": true,
+    "sameOutputTokenCounts": true,
+    "responseValidationFailures": {
+      "parserV1": 5,
+      "parserV2": 1
+    },
+    "exactSpanValidationFailures": {
+      "parserV1": 0,
+      "parserV2": 1
+    },
+    "documentsWithOutput": {
+      "parserV1": 0,
+      "parserV2": 3
+    },
+    "note": "The exact five raw responses and per-case output-token counts matched parser v1. This isolates the changed acceptance outcome to fence normalization; generation durations varied between runs."
+  },
+  "results": [
+    {
+      "name": "Contact details",
+      "appStatus": "response validation failure",
+      "reviewedScore": {
+        "expected": 4,
+        "detected": 7,
+        "correct": 4,
+        "missed": 0,
+        "extra": 3
+      },
+      "durationMs": 21504,
+      "outputTokens": 153,
+      "error": "The response contains two entities with unsupported category TEXT."
+    },
+    {
+      "name": "Address & date of birth",
+      "appStatus": "output produced",
+      "score": {
+        "expected": 3,
+        "detected": 4,
+        "correct": 2,
+        "missed": 1,
+        "extra": 2
+      },
+      "durationMs": 14156,
+      "outputTokens": 107,
+      "note": "The complete address was missed and replaced as two separate ADDRESS spans."
+    },
+    {
+      "name": "Account reference",
+      "appStatus": "exact-span validation failure",
+      "reviewedScore": {
+        "expected": 2,
+        "detected": 4,
+        "correct": 0,
+        "missed": 2,
+        "extra": 4
+      },
+      "durationMs": 16763,
+      "outputTokens": 115,
+      "error": "Invoice total: £240. does not occur in the source; atomic span validation rejected the document."
+    },
+    {
+      "name": "No personal information",
+      "appStatus": "output produced",
+      "score": {
+        "expected": 0,
+        "detected": 3,
+        "correct": 0,
+        "missed": 0,
+        "extra": 3
+      },
+      "durationMs": 11866,
+      "outputTokens": 100,
+      "note": "All three ordinary sentences were replaced as DATE_OF_BIRTH."
+    },
+    {
+      "name": "Instructions inside text",
+      "appStatus": "output produced",
+      "score": {
+        "expected": 2,
+        "detected": 2,
+        "correct": 0,
+        "missed": 2,
+        "extra": 2
+      },
+      "durationMs": 7230,
+      "outputTokens": 56,
+      "note": "The two expected PII spans remained visible while two ordinary phrases were replaced under incorrect categories."
+    }
+  ],
+  "conclusion": "Parser v2 fixed the systematic fenced-JSON transport failure exactly as intended: three documents reached output, one failed entity-schema validation, and one failed exact-span validation. The resulting anonymised output was still poor, with only 2/11 expected spans replaced and 7 incorrect replacements. The parser fix should remain; model-quality failures should be measured with 1.7B before changing the prompt."
+}

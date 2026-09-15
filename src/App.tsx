@@ -1,9 +1,20 @@
 import { useEffect, useState } from 'react';
-import { WebLlmExperiment } from './experiments/WebLlmExperiment';
+import {
+  TransformersJsExperiment,
+  WebLlmExperiment,
+} from './experiments/BrowserModelExperiment';
 
-type Route = 'home' | 'webllm-workbench' | 'webllm-evaluation';
+type Route =
+  | 'home'
+  | 'webllm-workbench'
+  | 'webllm-evaluation'
+  | 'transformersjs-workbench'
+  | 'transformersjs-evaluation';
 
 function routeFromHash(hash: string): Route {
+  if (hash === '#/transformersjs/evaluation')
+    return 'transformersjs-evaluation';
+  if (hash === '#/transformersjs') return 'transformersjs-workbench';
   if (hash === '#/webllm/evaluation') return 'webllm-evaluation';
   if (hash === '#/webllm') return 'webllm-workbench';
   return 'home';
@@ -44,12 +55,12 @@ function Welcome() {
           </span>
         </a>
 
-        <article className="experiment-card planned">
+        <a className="experiment-card available" href="#/transformersjs">
           <span className="experiment-number">EXPERIMENT 002</span>
           <h2>Transformers.js</h2>
           <p>
-            A future comparison using browser-native model execution through
-            Transformers.js.
+            Run the same Qwen3 models and fixtures through ONNX Runtime Web for
+            a controlled runtime comparison.
           </p>
           <dl>
             <div>
@@ -58,10 +69,13 @@ function Welcome() {
             </div>
             <div>
               <dt>Status</dt>
-              <dd>Planned</dd>
+              <dd>Available</dd>
             </div>
           </dl>
-        </article>
+          <span className="card-action">
+            Open experiment <span aria-hidden="true">↗</span>
+          </span>
+        </a>
 
         <article className="experiment-card planned">
           <span className="experiment-number">EXPERIMENT 003</span>
@@ -101,31 +115,48 @@ export function App() {
       : route === 'webllm-evaluation'
         ? 'evaluation'
         : null;
+  const transformersJsPage =
+    route === 'transformersjs-workbench'
+      ? 'workbench'
+      : route === 'transformersjs-evaluation'
+        ? 'evaluation'
+        : null;
+  const experiment = webLlmPage
+    ? {
+        number: '001',
+        footer: 'WebLLM · Qwen3 · No inference server',
+        page: <WebLlmExperiment page={webLlmPage} />,
+      }
+    : transformersJsPage
+      ? {
+          number: '002',
+          footer: 'Transformers.js · Qwen3 · No inference server',
+          page: <TransformersJsExperiment page={transformersJsPage} />,
+        }
+      : null;
 
   return (
     <>
       <header className="site-header">
         <a className="brand" href="#/" aria-label="PII Lab home">
           <span className="brand-mark">[·]</span> PII Lab
-          {webLlmPage && <span className="version">EXPERIMENT 001</span>}
+          {experiment && (
+            <span className="version">EXPERIMENT {experiment.number}</span>
+          )}
         </a>
         <span className="local-badge">
           <span className="dot" /> Browser-local experiments
         </span>
       </header>
 
-      {webLlmPage ? <WebLlmExperiment page={webLlmPage} /> : <Welcome />}
+      {experiment?.page ?? <Welcome />}
 
       <footer>
         <span>
           PII LAB <span className="footer-divider">/</span> Browser-local PII
           detection
         </span>
-        <span>
-          {webLlmPage
-            ? 'WebLLM · Qwen3 · No inference server'
-            : 'Experiments run on your device'}
-        </span>
+        <span>{experiment?.footer ?? 'Experiments run on your device'}</span>
       </footer>
     </>
   );

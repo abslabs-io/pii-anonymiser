@@ -67,6 +67,8 @@ export class WebLlmDetector implements Detector {
       throw new Error(
         'WebGPU needs HTTPS or localhost. Open this app using a secure origin.',
       );
+    if (!model.endsWith('-MLC'))
+      throw new Error('The selected model is not available through WebLLM.');
     const gpu = (
       navigator as Navigator & {
         gpu?: {

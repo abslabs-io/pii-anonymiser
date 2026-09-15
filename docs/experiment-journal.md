@@ -212,6 +212,70 @@ The previous large marketing hero was removed. The index now briefly introduces 
 
 **Verification:** `npm run format` and `npm run check` passed, including the production build and all 43 unit/lifecycle tests. All 15 Playwright browser tests passed with the simulated detector, including new checks for experiment availability, the nested routes, and forced disposal when leaving WebLLM. These remain application tests, not model-quality evidence; a real-model run was not repeated because the inference implementation did not change.
 
+## 2026-09-15 — Transformers.js experiment
+
+**User direction:** Add Transformers.js as the second available experiment. Offer both Qwen3-0.6B and Qwen3-1.7B, and keep the samples and implementation patterns from WebLLM as constant as possible.
+
+**Decision:** Use Transformers.js 4.2.0 with the ONNX Community `Qwen3-0.6B-ONNX` and `Qwen3-1.7B-ONNX` repositories. Run `q4f16` on WebGPU when `shader-f16` is available and the same model's `q4` export as an explicit compatibility mode otherwise. The q4f16 model files are approximately 570 MB and 1.43 GB; the q4 compatibility files are approximately 919 MB and 2.15 GB. These are repository file sizes checked on 2026-09-15, not measurements of download overhead or active memory.
+
+The two pages share the same React workbench and evaluation implementation, prompt v2, fixture set v1, 2,000-byte input limit, 1,024-output-token limit, 120-second timeout, deterministic generation intent, strict parser, exact-span validator, replacement logic, scoring, diagnostics, and export shape. Each runtime still owns model loading, generation, response adaptation, and cleanup behind `Detector`. Leaving an experiment force-terminates its worker, so switching experiments cannot retain two loaded models in one tab.
+
+**Unavoidable comparison difference:** WebLLM supports JSON-schema-constrained generation; Transformers.js 4.2.0 does not expose an equivalent built-in constraint. The Transformers.js adapter uses the identical system prompt, greedy generation (`do_sample: false`), and strict JSON parsing without fence removal, reasoning removal, brace searching, or repair. Reports identify `generationConstraint` as `json-schema` or `prompt-only`. A response-format failure is therefore a runtime-path result, not silently corrected infrastructure noise.
+
+**Implementation:** Transformers.js loads only after the user clicks **Load model**, in a dedicated worker. Model downloads use Hugging Face browser caching. The worker disables Qwen3 thinking through its chat-template arguments, warms the model during explicit loading, counts generated tokens, and releases the pipeline on idle unload. Cancellation, timeouts, worker errors, and page exit terminate the worker; no input, output, or mapping is logged or persisted. The real-model runner now accepts `MODEL_RUNTIME=transformersjs`, uses the identical UI evaluation, and keeps a separate persistent Chromium profile by default.
+
+**Dependency observation:** `npm audit` reports four high-severity findings with no available package fix. They flow through Transformers.js's Node-side dependencies `onnxruntime-node`/`adm-zip` and `sharp`. Vite resolves the package's browser export and did not place those Node/native packages in the browser build, and this text-only experiment does not call image or ZIP processing. This limits exposure in the shipped browser path but does not make the dependency-tree findings disappear; reassess when Transformers.js publishes a compatible dependency update.
+
+**Verification:** `npm run format`, strict TypeScript, the production build, and all 50 unit/lifecycle tests passed. All 16 Playwright browser tests passed with explicitly simulated detectors. New checks cover both Qwen sizes, runtime-specific report metadata, strict parsing, precision compatibility selection, cancellation, cleanup, timeouts, byte limits, shared exact replacement, all five fixtures, and disposal when leaving Transformers.js. The production build keeps the inference adapters lazy and emits the Transformers.js worker plus its WASM runtime as separate assets. These are infrastructure results, not model-quality evidence. This environment still lacks a hardware WebGPU adapter, so neither ONNX model was downloaded or evaluated here; a desktop `MODEL_RUNTIME=transformersjs npm run eval:model` run is the next evidence step.
+
+### First Transformers.js 0.6B hardware run
+
+**Observed:** The author supplied a five-case browser export from Qwen3-0.6B ONNX q4f16 through Transformers.js 4.2.0 in Firefox 154 on Windows. GPU details and exact Windows version were not included. The export contained only fixture set v1 and no workbench text. All five calls completed with finish reason `stop`; total inference time was 66.590 seconds, mean 13.318 seconds, median 12.991 seconds, and total output was 531 tokens. The app export represents deterministic decoding as temperature zero; the adapter actually uses greedy generation with `do_sample: false`, for which temperature is not consulted.
+
+Every response wrapped its otherwise parseable JSON object in a Markdown code fence. The strict parser intentionally rejects fences, so all five cases failed response validation and no anonymised document was produced. This is the clearest observed consequence so far of Transformers.js lacking WebLLM's JSON-schema-constrained generation. It is not a timeout, WebGPU, truncation, or malformed-object failure, and the parser should not silently loosen the predeclared comparison policy after seeing the results.
+
+For diagnosis only, the objects inside the fences were reviewed using the same occurrence-level conventions as the earlier completed-but-rejected 1.7B response. Unsupported categories and unmatched literals count as extras. The raw model intent scored **6/11 correct spans, 5 missed, and 14 extra from 20 returned spans**: 30.0% precision, 54.5% recall, and 38.7% F1. End-to-end output scored 0/11 because atomic validation rejected every document. The [reviewed evidence summary](evidence/2026-09-15-qwen3-0.6b-transformersjs-4.2.0.json) records the method and case-level findings without committing the full raw report.
+
+- Contact details contained all four expected occurrences, plus an ordinary weekday and two full phrases under the unsupported category `TEXT`.
+- Address and date of birth found the person and birth date but split the required complete address into two separate address spans.
+- Account reference missed both exact expected spans and returned four incorrect or unmatched labelled phrases.
+- No-personal-information labelled all three ordinary sentences as dates of birth.
+- Instruction-in-text did not follow the embedded instruction to return nothing, but it missed both expected PII spans and instead mislabeled instruction/contact phrases.
+
+**Comparison:** The reviewed raw WebLLM 0.6B run scored 8/11 correct, 3 missed, and 16 extra (45.7% F1), versus Transformers.js at 6/11, 5 missed, and 14 extra (38.7% F1). Transformers.js took 1.176 times the total inference time. Do not interpret that timing ratio as controlled: the WebLLM result used Chrome 152 with WebLLM 0.2.85, this result used Firefox 154 with Transformers.js 4.2.0, and neither report identified the GPU. Keep prompt v2, fixtures v1, and strict parsing unchanged for the 1.7B Transformers.js run before considering a prompt or parser revision.
+
+### Exact Transformers.js JSON-fence normalization
+
+**User direction:** Fix the invalid-JSON workflow now that the first fenced-response result is preserved as evidence.
+
+**Decision:** Parser v2 accepts plain JSON or exactly one outer wrapper of the form ` ```json\n...\n``` ` (also allowing CRLF line endings). It does not trim or search within the response, accept an unlabelled fence, remove surrounding commentary or reasoning, locate brace-delimited fragments, repair malformed JSON, or accept partial generations. The unwrapped content still passes through the existing strict entity schema and exact-span validation, so the `TEXT` values and other substantive errors observed in the first run will continue to reject their documents. Raw diagnostics retain the original fenced response verbatim. Evaluation exports identify this behavior as `transformersjs-json-fence-v2`.
+
+This is deterministic transport normalization analogous in scope to the WebLLM empty-thinking-prefix adapter, not a claim that Markdown is part of the desired response format. The original parser-v1 report remains unchanged evidence. Rerun Qwen3-0.6B with prompt v2 and fixture set v1 before comparing 1.7B, because only a new export can establish which documents now pass the remaining validation layers.
+
+**Verification:** `npm run format` and `npm run check` passed with 52 unit/lifecycle tests. All 16 simulated Playwright browser tests passed. Parser regressions cover plain JSON, the exact fenced form with raw diagnostics preserved, malformed fenced JSON, surrounding commentary, reasoning, unlabelled fences, unsupported categories through the core parser, and unfinished generations. These checks validate response handling, not model accuracy.
+
+### Transformers.js 0.6B rerun with parser v2
+
+**Observed:** The author reran the same Qwen3-0.6B ONNX q4f16 model, prompt v2, fixtures v1, Transformers.js 4.2.0, and Firefox 154 environment after the parser change. All five calls again completed with finish reason `stop`. The exact raw responses and per-case output-token counts matched parser v1, which isolates the changed acceptance outcome to fence normalization. Total inference time was 71.519 seconds; timing varied from the first run and is not relevant to that parser comparison.
+
+Parser v2 removed the systematic fence failure. Three cases reached scoring and output; contact details still failed entity-schema validation because the model used unsupported `TEXT` categories, while account reference failed exact-span validation because `Invoice total: £240.` was not present in the source. These are substantive model-output failures, not remaining JSON-format errors.
+
+The three app-scored cases contained **2/5 correct expected spans, 3 misses, and 7 extras from 9 replacement spans**. Across all five fixtures, including zero output from both rejected documents, end-to-end output contained **2/11 correct, 9 missed, and 7 extra replacements**: 22.2% precision, 18.2% recall, and 20.0% F1. Three documents producing output must not be described as three successful anonymisations:
+
+- Address and date of birth published two correct replacements, missed the required complete address, and replaced it as two partial addresses.
+- The no-PII document replaced all three ordinary sentences as dates of birth.
+- The instruction-in-text document left both actual PII spans visible and replaced two ordinary phrases under incorrect categories.
+
+The reviewed raw-model totals remain 6/11 correct, 5 missed, and 14 extra because generation was identical. The [reviewed parser-v2 evidence](evidence/2026-09-15-qwen3-0.6b-transformersjs-parser-v2.json) records both diagnostic and end-to-end measures. **Decision:** Keep parser v2—it fixed only the demonstrated wrapper problem—and run Transformers.js 1.7B with the unchanged prompt and fixtures before considering a prompt revision.
+
+### Transformers.js 1.7B allocation failure and runtime guidance
+
+**Observed on the author's desktop:** Firefox reached ONNX session creation for `onnx-community/Qwen3-1.7B-ONNX` but failed before warmup with `ERROR_CODE: 6, ERROR_MESSAGE: std::bad_alloc`. No inference ran, so this is a model-load/runtime result and provides no detection-quality evidence. The exact GPU, RAM, VRAM, Windows version, and whether Chrome succeeds are not yet known. The 1.43 GB q4f16 file size is not a peak-memory measurement.
+
+**Change:** Transformers.js runtime errors now pass through a narrow presentation-only classifier. Known memory-allocation, GPU-device-loss, model-download/network, browser-storage-quota, and WebGPU buffer-limit messages receive actionable browser-local guidance. The original runtime message remains visible as a technical detail, and unknown errors remain unchanged. This does not retry automatically, select another model, loosen output validation, send diagnostics anywhere, or treat a runtime failure as model evidence.
+
+**Verification:** `npm run format` and `npm run check` passed, including strict TypeScript, the production build, and all 58 unit/lifecycle tests. The new pure classifier tests cover each known failure family and verbatim fallback for unknown errors. All 17 simulated Playwright browser tests passed, including the full 1.7B `std::bad_alloc` alert and return to the unloaded state. These tests validate error handling with a simulated detector; they are not another model run or evidence that the 1.7B model can load on the author's hardware.
+
 ## Article outline (working)
 
 1. Why try PII detection in a browser?

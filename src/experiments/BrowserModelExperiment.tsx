@@ -7,17 +7,22 @@ import {
 } from '../core/anonymise';
 import { ResponseDetails } from '../components/ResponseDetails';
 import { responseParserVersion } from '../inference/webllm-response';
+import { transformersJsResponseParserVersion } from '../inference/transformersjs-response';
+import { explainTransformersJsError } from '../inference/transformersjs-errors';
 import { promptVersion } from '../inference/prompt';
 import { scoreFixture, type Score } from '../core/evaluate';
 import { fixtures } from '../core/samples';
 import {
   byteLength,
   MAX_INPUT_BYTES,
-  models,
   ModelResponseError,
+  TRANSFORMERS_JS_VERSION,
+  transformersJsModels,
   WEBLLM_VERSION,
+  webLlmModels,
   type Detector,
   type ModelId,
+  type ModelOption,
   type Progress,
   type RuntimeModelId,
   type ResponseDiagnostics,
@@ -36,7 +41,66 @@ type EvalRow = {
   diagnostics?: ResponseDiagnostics;
 };
 
-const errorMessage = (error: unknown) => {
+type ExperimentConfig = {
+  name: 'WebLLM' | 'Transformers.js';
+  number: '001' | '002';
+  slug: 'webllm' | 'transformersjs';
+  engineTag: string;
+  intro: string;
+  runtime: string;
+  runtimeMeta: string;
+  models: ModelOption[];
+  responseParserVersion: string;
+  generationConstraint: 'json-schema' | 'prompt-only';
+  generationMeta: string;
+  compatibilityMode: (model: RuntimeModelId | null) => boolean;
+  explainError?: (message: string) => string;
+  createDetector: () => Promise<Detector>;
+};
+
+const webLlmConfig: ExperimentConfig = {
+  name: 'WebLLM',
+  number: '001',
+  slug: 'webllm',
+  engineTag: 'WEBLLM / WEBGPU',
+  intro:
+    'Run Qwen3 with WebGPU to detect PII locally, then construct an anonymised result from exact source spans.',
+  runtime: `WebLLM ${WEBLLM_VERSION}`,
+  runtimeMeta: `WebLLM ${WEBLLM_VERSION} · 4-bit`,
+  models: webLlmModels,
+  responseParserVersion,
+  generationConstraint: 'json-schema',
+  generationMeta: 'schema-constrained JSON',
+  compatibilityMode: (model) => model?.includes('f32') ?? false,
+  createDetector: async () => {
+    const { WebLlmDetector } = await import('../inference/webllm');
+    return new WebLlmDetector();
+  },
+};
+
+const transformersJsConfig: ExperimentConfig = {
+  name: 'Transformers.js',
+  number: '002',
+  slug: 'transformersjs',
+  engineTag: 'TRANSFORMERS.JS / WEBGPU',
+  intro:
+    'Run the same Qwen3 models through Transformers.js and ONNX Runtime Web, then apply the same exact-span replacement pipeline.',
+  runtime: `Transformers.js ${TRANSFORMERS_JS_VERSION}`,
+  runtimeMeta: `Transformers.js ${TRANSFORMERS_JS_VERSION} · ONNX q4f16`,
+  models: transformersJsModels,
+  responseParserVersion: transformersJsResponseParserVersion,
+  generationConstraint: 'prompt-only',
+  generationMeta: 'prompt-only JSON',
+  compatibilityMode: (model) => model?.endsWith('#q4') ?? false,
+  explainError: explainTransformersJsError,
+  createDetector: async () => {
+    const { TransformersJsDetector } =
+      await import('../inference/transformersjs');
+    return new TransformersJsDetector();
+  },
+};
+
+const rawErrorMessage = (error: unknown) => {
   if (error instanceof Error) return error.message;
   // WebLLM's worker RPC serializes thrown errors with err.toString() and
   // rejects the client promise with that string.
@@ -50,6 +114,28 @@ const errorMessage = (error: unknown) => {
   )
     return error.message;
   return 'Something went wrong. Unload the model and try again.';
+};
+
+const errorMessage = (error: unknown, config: ExperimentConfig) => {
+  const message = rawErrorMessage(error);
+  return config.explainError?.(message) ?? message;
+};
+
+const responseDiagnostics = (error: unknown) => {
+  if (error instanceof ModelResponseError) return error.diagnostics;
+  // Vite hot reload can create two instances of the same error class. Retain
+  // completed-response evidence by checking the stable serialized shape too.
+  if (
+    error &&
+    typeof error === 'object' &&
+    'name' in error &&
+    error.name === 'ModelResponseError' &&
+    'diagnostics' in error &&
+    error.diagnostics &&
+    typeof error.diagnostics === 'object'
+  )
+    return error.diagnostics as ResponseDiagnostics;
+  return undefined;
 };
 
 function SourcePreview({ result }: { result: Anonymised }) {
@@ -68,12 +154,14 @@ function SourcePreview({ result }: { result: Anonymised }) {
   return <pre className="source-preview">{parts}</pre>;
 }
 
-export function WebLlmExperiment({
+function BrowserModelExperiment({
   page,
+  config,
 }: {
   page: 'workbench' | 'evaluation';
+  config: ExperimentConfig;
 }) {
-  const [model, setModel] = useState<ModelId>(models[0].id);
+  const [model, setModel] = useState<ModelId>(config.models[0].id);
   const [loadedModel, setLoadedModel] = useState<RuntimeModelId | null>(null);
   const [status, setStatus] = useState<Status>('idle');
   const [progress, setProgress] = useState<Progress>({ progress: 0, text: '' });
@@ -118,7 +206,7 @@ export function WebLlmExperiment({
     status === 'running' ||
     status === 'evaluating' ||
     status === 'unloading';
-  const selectedModel = models.find((item) => item.id === model)!;
+  const selectedModel = config.models.find((item) => item.id === model)!;
   const bytes = byteLength(text);
   const tooLong = bytes > MAX_INPUT_BYTES;
   const unsupported = !window.isSecureContext || !('gpu' in navigator);
@@ -160,9 +248,9 @@ export function WebLlmExperiment({
       text: 'Checking browser and preparing the engine…',
     });
     try {
-      const { WebLlmDetector } = await import('../inference/webllm');
       if (operation.current !== id) return;
-      const next = new WebLlmDetector();
+      const next = await config.createDetector();
+      if (operation.current !== id) return;
       detector.current = next;
       const resolvedModel = await next.load(model, (update) => {
         if (operation.current === id) setProgress(update);
@@ -173,7 +261,7 @@ export function WebLlmExperiment({
       }
     } catch (caught) {
       if (operation.current === id) {
-        setError(errorMessage(caught));
+        setError(errorMessage(caught, config));
         await unload();
       }
     } finally {
@@ -202,13 +290,10 @@ export function WebLlmExperiment({
       setStatus('ready');
     } catch (caught) {
       if (operation.current === id) {
-        setError(errorMessage(caught));
-        if (caught instanceof ModelResponseError)
-          setDiagnostics(caught.diagnostics);
-        if (
-          caught instanceof ModelResponseError ||
-          caught instanceof DetectionError
-        )
+        setError(errorMessage(caught, config));
+        const completedDiagnostics = responseDiagnostics(caught);
+        if (completedDiagnostics) setDiagnostics(completedDiagnostics);
+        if (completedDiagnostics || caught instanceof DetectionError)
           setStatus('ready');
         else await unload();
       }
@@ -248,23 +333,21 @@ export function WebLlmExperiment({
           ]);
         } catch (caught) {
           if (operation.current !== id) return;
-          const message = errorMessage(caught);
+          const message = errorMessage(caught, config);
+          const completedDiagnostics = responseDiagnostics(caught);
           setRows((previous) => [
             ...previous,
             {
               name: fixture.name,
               error: message,
-              diagnostics:
-                caught instanceof ModelResponseError
-                  ? caught.diagnostics
-                  : caseDiagnostics,
+              diagnostics: completedDiagnostics ?? caseDiagnostics,
             },
           ]);
           // A returned diagnostic proves inference completed, even if a hot
           // module reload means the thrown error has a different class identity.
           const completed =
             caseDiagnostics !== undefined ||
-            caught instanceof ModelResponseError ||
+            completedDiagnostics !== undefined ||
             caught instanceof DetectionError;
           if (completed) {
             failedCases++;
@@ -311,12 +394,13 @@ export function WebLlmExperiment({
           {
             experiment: 'PII Lab',
             model: evalModel,
-            runtime: `WebLLM ${WEBLLM_VERSION}`,
+            runtime: config.runtime,
             timestamp: evalDate,
             browser: navigator.userAgent,
             fixtureSet: 'v1',
             promptVersion,
-            responseParserVersion,
+            responseParserVersion: config.responseParserVersion,
+            generationConstraint: config.generationConstraint,
             temperature: 0,
             thinking: false,
             fixtures,
@@ -353,27 +437,24 @@ export function WebLlmExperiment({
         <div>
           <a href="#/">Experiments</a>
           <span aria-hidden="true">/</span>
-          <strong>WebLLM</strong>
+          <strong>{config.name}</strong>
         </div>
-        <p>
-          Run Qwen3 with WebGPU to detect PII locally, then construct an
-          anonymised result from exact source spans.
-        </p>
+        <p>{config.intro}</p>
       </div>
       <nav className="tabs" aria-label="Experiment pages">
         <a
-          href="#/webllm"
+          href={`#/${config.slug}`}
           aria-current={page === 'workbench' ? 'page' : undefined}
         >
           01 <span>Workbench</span>
         </a>
         <a
-          href="#/webllm/evaluation"
+          href={`#/${config.slug}/evaluation`}
           aria-current={page === 'evaluation' ? 'page' : undefined}
         >
           02 <span>Evaluation</span>
         </a>
-        <span className="engine-tag">WEBLLM / WEBGPU</span>
+        <span className="engine-tag">{config.engineTag}</span>
       </nav>
 
       <section className="model-bar" aria-label="Model controls">
@@ -390,16 +471,18 @@ export function WebLlmExperiment({
               setError('');
             }}
           >
-            {models.map((item) => (
+            {config.models.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.label}
               </option>
             ))}
           </select>
           <span className="model-meta">
-            WebLLM {WEBLLM_VERSION} · 4-bit · {selectedModel.download} first
-            download · thinking off
-            {loadedModel?.includes('f32') ? ' · compatibility mode' : ''}
+            {config.runtimeMeta} · {selectedModel.download} first download ·
+            thinking off · {config.generationMeta}
+            {config.compatibilityMode(loadedModel)
+              ? ' · compatibility mode'
+              : ''}
           </span>
         </div>
         <div className="model-actions">
@@ -798,4 +881,20 @@ export function WebLlmExperiment({
       </aside>
     </main>
   );
+}
+
+export function WebLlmExperiment({
+  page,
+}: {
+  page: 'workbench' | 'evaluation';
+}) {
+  return <BrowserModelExperiment page={page} config={webLlmConfig} />;
+}
+
+export function TransformersJsExperiment({
+  page,
+}: {
+  page: 'workbench' | 'evaluation';
+}) {
+  return <BrowserModelExperiment page={page} config={transformersJsConfig} />;
 }

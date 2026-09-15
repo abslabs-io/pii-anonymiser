@@ -2,13 +2,13 @@
 
 A desktop browser experiment: use a small local language model to detect personal information, then replace exact spans with tokens while preserving the rest of the text.
 
-The first implementation uses **WebLLM + Qwen3-0.6B**. A Qwen3-1.7B option allows a deliberate comparison when the smaller model misses information. This is an experimental detector, not a guarantee that all identifying information has been removed.
+Two implementations run the same Qwen3 models through **WebLLM** and **Transformers.js**. Each offers Qwen3-0.6B and Qwen3-1.7B for deliberate, sequential comparisons. This is an experimental detector, not a guarantee that all identifying information has been removed.
 
 ![The workbench with invented sample text, before model loading or inference](docs/workbench.png)
 
 ## Run locally
 
-Requirements: Node.js 22.12+ (Node 24 recommended), npm, and a desktop browser with WebGPU. Start with current Chrome or Edge and graphics acceleration enabled. If the GPU lacks `shader-f16`, the app selects the same model's `q4f32_1` export and displays “compatibility mode”. This can consume more memory and run slower; it does not switch to a larger model or a remote service.
+Requirements: Node.js 22.12+ (Node 24 recommended), npm, and a desktop browser with WebGPU. Start with a current browser and graphics acceleration enabled. If the GPU lacks `shader-f16`, WebLLM selects the same model's `q4f32_1` export and Transformers.js selects its `q4` export. The page displays “compatibility mode”; this can consume more memory and run slower, but never switches to a larger model or remote service.
 
 ```sh
 npm ci
@@ -17,7 +17,7 @@ npm run dev
 
 Open <http://127.0.0.1:5173>. The welcome screen lists the available and planned browser-local experiments. No API key, environment file, or inference backend is needed.
 
-1. Open the **WebLLM** experiment, choose a model, and click **Load model**. The first visit downloads its weights and runtime.
+1. Open the **WebLLM** or **Transformers.js** experiment, choose a model, and click **Load model**. The first visit downloads that runtime's weights and engine.
 2. Paste a short passage or select an invented sample.
 3. Click **Anonymise text** and review the highlighted detections and tokenised output.
 4. Use **Evaluation** to run five labelled examples sequentially and export a JSON report.
@@ -32,18 +32,18 @@ The initial limit is **2,000 UTF-8 bytes per passage**, with a 4,096-token model
 ## What runs where
 
 ```text
-Original text → WebLLM in a browser worker → exact strings + categories
-             → validate against original → deterministic token replacement
+Original text → selected runtime in a browser worker → exact strings + categories
+              → validate against original → deterministic token replacement
 ```
 
 - React/TypeScript renders the app; Vite serves and builds it.
-- WebLLM runs the model on the browser's GPU, inside a dedicated worker.
+- WebLLM or Transformers.js with ONNX Runtime Web runs the model on the browser's GPU, inside a dedicated worker.
 - Model code loads only after clicking **Load model**.
 - Input, output, and token mappings stay in page memory. Reloading clears them.
 - No analytics, remote fonts, inference API, or automatic text logging is included.
-- Initial downloads contact Hugging Face and the WebLLM runtime host. Those requests reveal normal network metadata, but do not contain the text being processed.
-- Model assets are cached by WebLLM in browser storage. Cache eviction/private browsing can cause another download. This app does not promise a fully offline page reload.
-- One model runs at a time within the app tab. Idle unload asks WebLLM to release its GPU resources, then terminates its worker (with a two-second fallback deadline). Controls stay locked until cleanup finishes. Cancellation and page exit terminate immediately; cached files remain on disk. Opening multiple tabs can allocate multiple models.
+- Initial downloads contact Hugging Face and, for WebLLM, its runtime host. Those requests reveal normal network metadata, but do not contain the text being processed.
+- Model assets are cached by the selected runtime in browser storage. Cache eviction/private browsing can cause another download. This app does not promise a fully offline page reload.
+- One model runs at a time within the app tab. Idle unload asks the runtime to release its GPU resources, then terminates its worker (with a two-second fallback deadline). Controls stay locked until cleanup finishes. Cancellation and page exit terminate immediately; cached files remain on disk. Opening multiple tabs can allocate multiple models.
 
 ## When WebGPU stops working
 
@@ -51,16 +51,20 @@ Original text → WebLLM in a browser worker → exact strings + categories
 
 If it persists, check that graphics acceleration is enabled in the browser's system settings, then inspect `chrome://gpu` (Chrome) or `edge://gpu` (Edge), especially WebGPU status and “Problems Detected”. Record your browser version, OS, GPU, and whether restarting restored access. [Chrome's WebGPU troubleshooting guide](https://developer.chrome.com/docs/web-platform/webgpu/troubleshooting-tips) lists causes including disabled acceleration, GPU blocklisting, and repeated GPU-process crashes. The app cannot establish which one happened from a null adapter alone.
 
+Transformers.js translates several known low-level failures into actionable messages while retaining the original runtime text as a technical detail. In particular, `std::bad_alloc` during ONNX session creation means the selected model could not fit in the memory available to that browser process. Close other model tabs and GPU-heavy applications, fully restart the browser, and try a current Chrome or Edge release. If the 1.7B model still fails, use 0.6B. The app also gives specific guidance for a lost GPU device, download/network failures, exhausted site-storage quota, and WebGPU buffer-limit errors; unknown runtime errors are shown unchanged.
+
 ## Models and sizes
 
-| Model ID                 | Approximate MLC model download |
-| ------------------------ | -----------------------------: |
-| `Qwen3-0.6B-q4f16_1-MLC` |                         352 MB |
-| `Qwen3-1.7B-q4f16_1-MLC` |                         984 MB |
+| Runtime         | Model/export                           | Approximate download |
+| --------------- | -------------------------------------- | -------------------: |
+| WebLLM          | `Qwen3-0.6B-q4f16_1-MLC`               |               352 MB |
+| WebLLM          | `Qwen3-1.7B-q4f16_1-MLC`               |               984 MB |
+| Transformers.js | `onnx-community/Qwen3-0.6B-ONNX` q4f16 |               570 MB |
+| Transformers.js | `onnx-community/Qwen3-1.7B-ONNX` q4f16 |              1.43 GB |
 
-The compiled runtime is an additional download. Running memory and loading peaks exceed download size and depend on browser, GPU, context, and runtime. Sizes are from the [0.6B](https://huggingface.co/mlc-ai/Qwen3-0.6B-q4f16_1-MLC/tree/main) and [1.7B](https://huggingface.co/mlc-ai/Qwen3-1.7B-q4f16_1-MLC/tree/main) repositories, checked on 2026-09-10.
+The compiled runtimes are additional downloads. Running memory and loading peaks exceed download size and depend on browser, GPU, context, and runtime. WebLLM sizes are from its [0.6B](https://huggingface.co/mlc-ai/Qwen3-0.6B-q4f16_1-MLC/tree/main) and [1.7B](https://huggingface.co/mlc-ai/Qwen3-1.7B-q4f16_1-MLC/tree/main) repositories. Transformers.js sizes are the q4f16 files in the ONNX Community [0.6B](https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX/tree/main/onnx) and [1.7B](https://huggingface.co/onnx-community/Qwen3-1.7B-ONNX/tree/main/onnx) repositories. The Transformers.js `q4` compatibility files are approximately 919 MB and 2.15 GB. Sizes were checked on 2026-09-15.
 
-Thinking is disabled. Generation uses temperature zero and schema-constrained JSON. That constrains the response shape; it does not guarantee correct detections or identical output across hardware. The application package and lockfile pin the runtime. Upstream model URLs currently follow their repositories' default revisions, so record the date of comparisons; bit-for-bit model reproducibility would additionally require pinning model revisions/assets.
+Thinking is disabled and generation is deterministic: WebLLM uses temperature zero, while Transformers.js uses greedy generation (`do_sample: false`). WebLLM applies a JSON schema during generation. Transformers.js 4.2.0 has no equivalent built-in structured-generation constraint, so it relies on the same prompt followed by strict JSON and exact-span validation. Its parser accepts plain JSON or one exact outer `json` Markdown fence, while still rejecting commentary, reasoning, unsupported categories, malformed JSON, and partial output. Evaluation exports record the generation constraint and parser version. The package and lockfile pin both runtimes. Upstream model URLs currently follow their repositories' default revisions, so record the date of comparisons; bit-for-bit model reproducibility would additionally require pinning model revisions/assets.
 
 The pinned WebLLM 0.2.82 runtime includes an exact empty thinking prefix (`<think>\n\n</think>\n\n`) in returned content when thinking is disabled. The adapter removes only that prefix before strict JSON validation. The response inspector retains it verbatim. Other reasoning, Markdown wrappers, malformed JSON, and truncated responses remain errors.
 
@@ -92,7 +96,7 @@ npm run eval:model     # REAL model: opens Chromium, runs fixtures, saves a repo
 
 `eval:model` (also available as `test:model`) starts the development server itself and requires a usable GPU and a display by default. It uses `.model-cache/` as a persistent Chromium profile so model downloads survive later runs, and saves timestamped reports under `model-evaluation-results/`. This profile is separate from normal Chrome, so its first run may download the model again. Both directories are ignored by Git. The runner prints aggregate counts without printing fixture text or model responses and saves its report before finishing. Misses, extra detections, and incomplete cases are experimental results, so they do not fail the command by default. Set `MODEL_STRICT=1` when you specifically want a zero-miss, zero-extra regression gate. Even a strict pass applies only to this small diagnostic set; it does not establish that a model is safe for general PII anonymisation.
 
-Run 0.6B once, or repeat it three times to inspect stability:
+Run WebLLM with 0.6B once, or repeat it three times to inspect stability:
 
 ```sh
 npm run eval:model
@@ -113,11 +117,32 @@ npm run eval:model
 Remove-Item Env:MODEL_ID
 ```
 
+Run the matching Transformers.js ONNX export in Bash:
+
+```sh
+MODEL_RUNTIME=transformersjs npm run eval:model
+MODEL_RUNTIME=transformersjs MODEL_ID=onnx-community/Qwen3-1.7B-ONNX npm run eval:model
+```
+
+Or in Windows PowerShell:
+
+```powershell
+$env:MODEL_RUNTIME = 'transformersjs'
+$env:MODEL_ID = 'onnx-community/Qwen3-1.7B-ONNX'
+npm run eval:model
+Remove-Item Env:MODEL_RUNTIME
+Remove-Item Env:MODEL_ID
+```
+
 Optional runner settings: `MODEL_STRICT=1` enables the strict quality gate; `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` selects an existing Chromium executable; `MODEL_PROFILE_DIR` and `MODEL_REPORT_DIR` change the persistent profile and report locations; `MODEL_HEADLESS=1` runs headless; `MODEL_SOFTWARE_GPU=1` enables an experimental SwiftShader path. Software GPU timings are not representative of desktop GPU performance. Do not commit the browser profile, model weights, or unreviewed reports.
 
 Evaluation checks exact span and category matches, including repeated occurrences. It reports correct, missed, and extra detections. Completed validation failures remain failures and produce no partial output, but do not prevent later fixtures from running. Runtime failures stop the run. Five invented cases are a diagnostic set, not an accuracy benchmark. See the [experiment journal](docs/experiment-journal.md) for actual validation status and findings.
 
-**Current real-model status:** A Windows desktop run of Qwen3-0.6B with prompt v2 scored 8/11 correct spans with 3 missed and 16 extra. See the [reviewed 0.6B result](docs/evidence/2026-09-11-qwen3-0.6b-prompt-v2.json). After the WebLLM rollback, Qwen3-1.7B completed all five inference calls. Its reviewed raw detections scored 9/11 correct with 2 missed and 8 extra, but exact-span validation rejected one complete document. The anonymised output actually published across the fixtures contained only 6/11 correct replacements, with 5 missed and 6 extra. See the [reviewed 1.7B result](docs/evidence/2026-09-11-qwen3-1.7b-prompt-v2-webllm-0.2.82.json). The larger model performed better on this small diagnostic set but remains unsuitable for unattended anonymisation. Software-WebGPU runs are recorded separately for [0.6B](docs/evidence/2026-09-10-software-gpu.json) and [1.7B](docs/evidence/2026-09-11-qwen3-1.7b-software-gpu.json); both timed out and are not representative of desktop GPU performance.
+**Current real-model status:** WebLLM has reviewed Windows desktop results. Qwen3-0.6B with prompt v2 scored 8/11 correct spans with 3 missed and 16 extra. See the [reviewed WebLLM 0.6B result](docs/evidence/2026-09-11-qwen3-0.6b-prompt-v2.json). After the WebLLM rollback, Qwen3-1.7B completed all five inference calls. Its reviewed raw detections scored 9/11 correct with 2 missed and 8 extra, but exact-span validation rejected one complete document. The anonymised output actually published across the fixtures contained only 6/11 correct replacements, with 5 missed and 6 extra. See the [reviewed WebLLM 1.7B result](docs/evidence/2026-09-11-qwen3-1.7b-prompt-v2-webllm-0.2.82.json). The larger model performed better on this small diagnostic set but remains unsuitable for unattended anonymisation. Software-WebGPU runs are recorded separately for [0.6B](docs/evidence/2026-09-10-software-gpu.json) and [1.7B](docs/evidence/2026-09-11-qwen3-1.7b-software-gpu.json); both timed out and are not representative of desktop GPU performance.
+
+The first Transformers.js hardware-WebGPU run used Qwen3-0.6B q4f16 in Firefox 154. All five generations completed, but every response was Markdown-fenced JSON, so parser v1 rejected every document and published no anonymised output. A diagnostic review inside the fences found 6/11 expected spans, 5 misses, and 14 extras from 20 returned occurrence spans (30.0% precision, 54.5% recall, 38.7% F1). See the [reviewed Transformers.js 0.6B result](docs/evidence/2026-09-15-qwen3-0.6b-transformersjs-4.2.0.json). Browser and runtime differences mean its 66.590-second total should not be treated as a controlled timing comparison with the earlier WebLLM run. Parser v2 subsequently added the exact fence normalization described above; the v1 result remains the preserved formatting baseline.
+
+The parser-v2 0.6B rerun returned exactly the same five raw responses and token counts. Fence normalization allowed three documents to produce output; one response still failed because it used an unsupported category, and one failed because it contained a non-source literal. Across output actually published by the app, only 2/11 expected spans were replaced, 9 were missed, and 7 incorrect replacements were added (22.2% precision, 18.2% recall, 20.0% F1). See the [reviewed parser-v2 result](docs/evidence/2026-09-15-qwen3-0.6b-transformersjs-parser-v2.json). The parser fix resolved the formatting problem but did not make the 0.6B model reliable.
 
 ## Production build
 
@@ -126,21 +151,21 @@ npm run build
 npm run preview
 ```
 
-Serve `dist/` on an HTTPS static host. Page navigation uses hashes, so no server route rewrites are required: `#/` lists experiments, `#/webllm` opens the current workbench, and `#/webllm/evaluation` opens its evaluation. The initial bundle excludes the lazily loaded WebLLM engine; the build reports large engine chunks because the inference runtime includes compiled code. GPU inference requires HTTPS or localhost. This first WebGPU implementation does not need the cross-origin-isolation headers that some multithreaded WASM approaches require.
+Serve `dist/` on an HTTPS static host. Page navigation uses hashes, so no server route rewrites are required: `#/` lists experiments; `#/webllm` and `#/transformersjs` open their workbenches; adding `/evaluation` opens each evaluation page. The initial JavaScript bundle excludes both lazily loaded inference engines. The build reports large runtime chunks and a WASM asset; they are requested only by the selected experiment's worker. GPU inference requires HTTPS or localhost. These WebGPU implementations do not need the cross-origin-isolation headers that some multithreaded WASM approaches require.
 
 ## Repository map
 
-| Location                     | Purpose                                                               |
-| ---------------------------- | --------------------------------------------------------------------- |
-| `src/core/`                  | Pure span replacement, output validation, fixtures, and scoring       |
-| `src/inference/`             | Detector interface, prompt, model settings, WebLLM adapter and worker |
-| `src/App.tsx`                | Welcome screen and lightweight experiment routing                     |
-| `src/experiments/`           | Runtime-specific experiment pages and their lifecycle UI              |
-| `tests/browser/`             | Browser workflows with simulated inference                            |
-| `tests/model/`               | Opt-in real model evaluation                                          |
-| `docs/experiment-journal.md` | Decisions, progress, evidence, and article material                   |
+| Location                     | Purpose                                                          |
+| ---------------------------- | ---------------------------------------------------------------- |
+| `src/core/`                  | Pure span replacement, output validation, fixtures, and scoring  |
+| `src/inference/`             | Shared detector contract plus WebLLM and Transformers.js workers |
+| `src/App.tsx`                | Welcome screen and lightweight experiment routing                |
+| `src/experiments/`           | Runtime-specific experiment pages and their lifecycle UI         |
+| `tests/browser/`             | Browser workflows with simulated inference                       |
+| `tests/model/`               | Opt-in real model evaluation                                     |
+| `docs/experiment-journal.md` | Decisions, progress, evidence, and article material              |
 
-For contribution expectations see [CONTRIBUTING.md](CONTRIBUTING.md). Coding agents should read [AGENTS.md](AGENTS.md). The next runtime can implement `Detector` while reusing the same replacement logic and fixture scoring.
+For contribution expectations see [CONTRIBUTING.md](CONTRIBUTING.md). Coding agents should read [AGENTS.md](AGENTS.md). Another runtime can implement `Detector` while reusing the same replacement logic and fixture scoring.
 
 ## Publication and licensing
 

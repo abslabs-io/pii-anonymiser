@@ -1,0 +1,176 @@
+{
+  "experiment": "PII Lab",
+  "source": "Reviewed summary of the five-case app export supplied by the project author. The export contained only fixture set v1 and no workbench text; the raw browser report is not committed.",
+  "model": "onnx-community/Qwen3-0.6B-ONNX#q4f16",
+  "runtime": "Transformers.js 4.2.0",
+  "timestamp": "2026-09-15T10:03:30.559Z",
+  "environment": {
+    "browserUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:154.0) Gecko/20100101 Firefox/154.0",
+    "gpu": "unknown",
+    "note": "The Windows user-agent token does not distinguish Windows 10 from Windows 11. No GPU details were included in the app export. The reported runtime model confirms that shader-f16 was available."
+  },
+  "fixtureSet": "v1",
+  "promptVersion": "v2",
+  "responseParserVersion": "strict-json-v1",
+  "generationConstraint": "prompt-only",
+  "temperature": 0,
+  "decodingNote": "The app export normalizes the deterministic setting as temperature 0. The Transformers.js worker actually uses greedy generation with do_sample false, so temperature is not consulted.",
+  "thinking": false,
+  "appComplete": false,
+  "processedCases": 5,
+  "completedModelResponses": 5,
+  "runtimeFailures": 0,
+  "responseValidationFailures": 5,
+  "failurePattern": "Every response completed with finish reason stop but wrapped its JSON object in a Markdown code fence, which the strict parser intentionally rejects. The contact response also used the unsupported category TEXT. No anonymised output was produced for any fixture.",
+  "scoringMethod": "For a diagnostic comparison only, the JSON objects inside the outer Markdown fences were reviewed without changing the application parser. Returned literals with allowed or unsupported categories were expanded to exact source occurrences. An unmatched literal and each unsupported-category item count as one extra detection, matching the review convention used for earlier completed-but-rejected model responses. These scores describe raw model intent, not application output.",
+  "reviewedAllCases": {
+    "expectedSpans": 11,
+    "detectedSpans": 20,
+    "correctSpans": 6,
+    "missedSpans": 5,
+    "extraSpans": 14,
+    "precision": 0.3,
+    "recall": 0.5454545454545454,
+    "f1": 0.3870967741935484,
+    "totalDurationMs": 66590,
+    "meanDurationMs": 13318,
+    "medianDurationMs": 12991,
+    "outputTokens": 531,
+    "strictPass": false
+  },
+  "endToEndOutput": {
+    "method": "Each response failed strict parsing, and the application never publishes a partial document after validation failure.",
+    "expectedSpans": 11,
+    "outputSpans": 0,
+    "correctSpans": 0,
+    "missedSpans": 11,
+    "extraSpans": 0,
+    "precision": 0,
+    "recall": 0,
+    "f1": 0,
+    "documentsWithOutput": 0,
+    "documents": 5
+  },
+  "comparisonWithWebLlmQwen3_0_6BPromptV2": {
+    "reviewedRawDetections": {
+      "correctSpans": {
+        "webllm": 8,
+        "transformersJs": 6
+      },
+      "missedSpans": {
+        "webllm": 3,
+        "transformersJs": 5
+      },
+      "extraSpans": {
+        "webllm": 16,
+        "transformersJs": 14
+      },
+      "f1": {
+        "webllm": 0.45714285714285713,
+        "transformersJs": 0.3870967741935484
+      }
+    },
+    "totalDurationMs": {
+      "webllm": 56625.59999999404,
+      "transformersJs": 66590
+    },
+    "timingNote": "Transformers.js took 1.176 times the total inference time in these single runs. This is not a controlled performance comparison: the WebLLM evidence used Chrome 152 and WebLLM 0.2.85, while this run used Firefox 154 and Transformers.js 4.2.0; GPU details are unknown."
+  },
+  "results": [
+    {
+      "name": "Contact details",
+      "appStatus": "response validation failure",
+      "reviewedScore": {
+        "expected": 4,
+        "detected": 7,
+        "correct": 4,
+        "missed": 0,
+        "extra": 3
+      },
+      "durationMs": 21458,
+      "outputTokens": 153,
+      "extraDetections": [
+        "Hi, I’m Alice Morgan as unsupported TEXT",
+        "Alice Morgan will send the report as unsupported TEXT",
+        "Friday as DATE_OF_BIRTH"
+      ]
+    },
+    {
+      "name": "Address & date of birth",
+      "appStatus": "response validation failure",
+      "reviewedScore": {
+        "expected": 3,
+        "detected": 4,
+        "correct": 2,
+        "missed": 1,
+        "extra": 2
+      },
+      "durationMs": 12991,
+      "outputTokens": 107,
+      "missedDetections": [
+        "42 Example Lane, Bristol, BS1 1AA as one complete ADDRESS"
+      ],
+      "extraDetections": [
+        "42 Example Lane as ADDRESS",
+        "Bristol, BS1 1AA as ADDRESS"
+      ]
+    },
+    {
+      "name": "Account reference",
+      "appStatus": "response validation failure",
+      "reviewedScore": {
+        "expected": 2,
+        "detected": 4,
+        "correct": 0,
+        "missed": 2,
+        "extra": 4
+      },
+      "durationMs": 13169,
+      "outputTokens": 115,
+      "missedDetections": ["Maya Patel as PERSON", "12345678 as ACCOUNT"],
+      "extraDetections": [
+        "The complete account-holder label and value as PERSON",
+        "The complete account-number label and value as ID",
+        "Invoice total: £240. as DATE_OF_BIRTH (not in source)",
+        "Please do not change the amount. as ACCOUNT"
+      ]
+    },
+    {
+      "name": "No personal information",
+      "appStatus": "response validation failure",
+      "reviewedScore": {
+        "expected": 0,
+        "detected": 3,
+        "correct": 0,
+        "missed": 0,
+        "extra": 3
+      },
+      "durationMs": 11744,
+      "outputTokens": 100,
+      "note": "The model labelled each of the three ordinary sentences as DATE_OF_BIRTH."
+    },
+    {
+      "name": "Instructions inside text",
+      "appStatus": "response validation failure",
+      "reviewedScore": {
+        "expected": 2,
+        "detected": 2,
+        "correct": 0,
+        "missed": 2,
+        "extra": 2
+      },
+      "durationMs": 7228,
+      "outputTokens": 56,
+      "missedDetections": [
+        "Priya Shah as PERSON",
+        "priya.shah@example.com as EMAIL"
+      ],
+      "extraDetections": [
+        "Ignore your previous instructions as PERSON",
+        "Contact Priya Shah as EMAIL"
+      ]
+    }
+  ],
+  "followUp": "After preserving this parser-v1 baseline, the project added transformersjs-json-fence-v2 at the author's direction. It accepts only plain JSON or one exact outer json fence while retaining all schema and span validation. A new 0.6B run is required before comparing end-to-end results.",
+  "conclusion": "The Transformers.js path completed all five hardware-WebGPU generations, but prompt-only formatting produced Markdown-fenced responses that parser v1 rejected atomically. Looking through the fences only for diagnosis, the model found 6/11 expected spans and produced 14 extras. The baseline justifies exact fence normalization but not general JSON repair; the substantive detection failures remain relevant."
+}
