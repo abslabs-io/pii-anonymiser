@@ -8,12 +8,14 @@ import {
 import { ResponseDetails } from '../components/ResponseDetails';
 import { responseParserVersion } from '../inference/webllm-response';
 import { transformersJsResponseParserVersion } from '../inference/transformersjs-response';
+import { geminiNanoResponseParserVersion } from '../inference/gemini-nano-response';
 import { explainTransformersJsError } from '../inference/transformersjs-errors';
 import { promptVersion } from '../inference/prompt';
 import { scoreFixture, type Score } from '../core/evaluate';
 import { fixtures } from '../core/samples';
 import {
   byteLength,
+  geminiNanoModels,
   MAX_INPUT_BYTES,
   ModelResponseError,
   TRANSFORMERS_JS_VERSION,
@@ -42,9 +44,9 @@ type EvalRow = {
 };
 
 type ExperimentConfig = {
-  name: 'WebLLM' | 'Transformers.js';
-  number: '001' | '002';
-  slug: 'webllm' | 'transformersjs';
+  name: 'WebLLM' | 'Transformers.js' | 'Gemini Nano';
+  number: '001' | '002' | '003';
+  slug: 'webllm' | 'transformersjs' | 'gemini-nano';
   engineTag: string;
   intro: string;
   runtime: string;
@@ -52,8 +54,11 @@ type ExperimentConfig = {
   models: ModelOption[];
   responseParserVersion: string;
   generationConstraint: 'json-schema' | 'prompt-only';
-  generationMeta: string;
+  settingsMeta: string;
+  temperature: number | null;
+  thinking: boolean | null;
   compatibilityMode: (model: RuntimeModelId | null) => boolean;
+  unsupportedNotice: () => string | null;
   explainError?: (message: string) => string;
   createDetector: () => Promise<Detector>;
 };
@@ -70,8 +75,14 @@ const webLlmConfig: ExperimentConfig = {
   models: webLlmModels,
   responseParserVersion,
   generationConstraint: 'json-schema',
-  generationMeta: 'schema-constrained JSON',
+  settingsMeta: 'thinking off · schema-constrained JSON',
+  temperature: 0,
+  thinking: false,
   compatibilityMode: (model) => model?.includes('f32') ?? false,
+  unsupportedNotice: () =>
+    !window.isSecureContext || !('gpu' in navigator)
+      ? 'This browser does not expose WebGPU on this page. Use a current desktop Chrome or Edge browser with graphics acceleration, over HTTPS or localhost.'
+      : null,
   createDetector: async () => {
     const { WebLlmDetector } = await import('../inference/webllm');
     return new WebLlmDetector();
@@ -90,13 +101,48 @@ const transformersJsConfig: ExperimentConfig = {
   models: transformersJsModels,
   responseParserVersion: transformersJsResponseParserVersion,
   generationConstraint: 'prompt-only',
-  generationMeta: 'prompt-only JSON',
+  settingsMeta: 'thinking off · prompt-only JSON',
+  temperature: 0,
+  thinking: false,
   compatibilityMode: (model) => model?.endsWith('#q4') ?? false,
+  unsupportedNotice: () =>
+    !window.isSecureContext || !('gpu' in navigator)
+      ? 'This browser does not expose WebGPU on this page. Use a current desktop Chrome or Edge browser with graphics acceleration, over HTTPS or localhost.'
+      : null,
   explainError: explainTransformersJsError,
   createDetector: async () => {
     const { TransformersJsDetector } =
       await import('../inference/transformersjs');
     return new TransformersJsDetector();
+  },
+};
+
+const geminiNanoConfig: ExperimentConfig = {
+  name: 'Gemini Nano',
+  number: '003',
+  slug: 'gemini-nano',
+  engineTag: 'CHROME PROMPT API / BUILT-IN AI',
+  intro:
+    'Use Chrome’s built-in Gemini Nano model to detect PII locally, then apply the same exact-span replacement pipeline.',
+  runtime: 'Chrome Prompt API',
+  runtimeMeta: 'Chrome Prompt API · browser-managed model',
+  models: geminiNanoModels,
+  responseParserVersion: geminiNanoResponseParserVersion,
+  generationConstraint: 'json-schema',
+  settingsMeta: 'Chrome-default sampling · schema-constrained JSON',
+  temperature: null,
+  thinking: null,
+  compatibilityMode: () => false,
+  unsupportedNotice: () => {
+    if (!window.isSecureContext)
+      return 'Chrome built-in AI needs HTTPS or localhost. Open this app using a secure origin.';
+    if (!('LanguageModel' in globalThis))
+      return 'This browser does not expose the current LanguageModel API. Use a supported current desktop Chrome release on an eligible device.';
+    return null;
+  },
+  createDetector: async () => {
+    const { GeminiNanoDetector } = await import('../inference/gemini-nano');
+    return new GeminiNanoDetector();
   },
 };
 
@@ -209,7 +255,8 @@ function BrowserModelExperiment({
   const selectedModel = config.models.find((item) => item.id === model)!;
   const bytes = byteLength(text);
   const tooLong = bytes > MAX_INPUT_BYTES;
-  const unsupported = !window.isSecureContext || !('gpu' in navigator);
+  const unsupportedNotice = config.unsupportedNotice();
+  const unsupported = unsupportedNotice !== null;
   const activeEvaluation =
     status === 'evaluating' ? fixtures[rows.length] : undefined;
 
@@ -401,8 +448,8 @@ function BrowserModelExperiment({
             promptVersion,
             responseParserVersion: config.responseParserVersion,
             generationConstraint: config.generationConstraint,
-            temperature: 0,
-            thinking: false,
+            temperature: config.temperature,
+            thinking: config.thinking,
             fixtures,
             complete:
               rows.length === fixtures.length && rows.every((row) => row.score),
@@ -479,7 +526,7 @@ function BrowserModelExperiment({
           </select>
           <span className="model-meta">
             {config.runtimeMeta} · {selectedModel.download} first download ·
-            thinking off · {config.generationMeta}
+            {config.settingsMeta}
             {config.compatibilityMode(loadedModel)
               ? ' · compatibility mode'
               : ''}
@@ -536,9 +583,7 @@ function BrowserModelExperiment({
 
       {unsupported && (
         <div className="notice" role="alert">
-          This browser does not expose WebGPU on this page. Use a current
-          desktop Chrome or Edge browser with graphics acceleration, over HTTPS
-          or localhost.
+          {unsupportedNotice}
         </div>
       )}
       {error && (
@@ -897,4 +942,12 @@ export function TransformersJsExperiment({
   page: 'workbench' | 'evaluation';
 }) {
   return <BrowserModelExperiment page={page} config={transformersJsConfig} />;
+}
+
+export function GeminiNanoExperiment({
+  page,
+}: {
+  page: 'workbench' | 'evaluation';
+}) {
+  return <BrowserModelExperiment page={page} config={geminiNanoConfig} />;
 }

@@ -15,29 +15,41 @@ async function simulate(
     | 'reported-first-failure'
     | 'runtime-error'
     | 'load-memory-error' = 'normal',
-  runtime: 'webllm' | 'transformersjs' = 'webllm',
+  runtime: 'webllm' | 'transformersjs' | 'gemini-nano' = 'webllm',
 ) {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'gpu', { value: {}, configurable: true });
-    const NativeBlob = window.Blob;
-    class CapturedBlob extends NativeBlob {
-      constructor(parts: BlobPart[] = [], options: BlobPropertyBag = {}) {
-        super(parts, options);
-        if (
-          options.type === 'application/json' &&
-          parts.every((part) => typeof part === 'string')
-        )
-          (
-            window as typeof window & { __piiLabEvaluation?: string }
-          ).__piiLabEvaluation = parts.join('');
+  await page.addInitScript(
+    ({ runtime }) => {
+      if (runtime !== 'gemini-nano')
+        Object.defineProperty(navigator, 'gpu', {
+          value: {},
+          configurable: true,
+        });
+      if (runtime === 'gemini-nano')
+        Object.defineProperty(window, 'LanguageModel', {
+          value: {},
+          configurable: true,
+        });
+      const NativeBlob = window.Blob;
+      class CapturedBlob extends NativeBlob {
+        constructor(parts: BlobPart[] = [], options: BlobPropertyBag = {}) {
+          super(parts, options);
+          if (
+            options.type === 'application/json' &&
+            parts.every((part) => typeof part === 'string')
+          )
+            (
+              window as typeof window & { __piiLabEvaluation?: string }
+            ).__piiLabEvaluation = parts.join('');
+        }
       }
-    }
-    Object.defineProperty(window, 'Blob', {
-      configurable: true,
-      value: CapturedBlob,
-      writable: true,
-    });
-  });
+      Object.defineProperty(window, 'Blob', {
+        configurable: true,
+        value: CapturedBlob,
+        writable: true,
+      });
+    },
+    { runtime },
+  );
   const modulePattern = new RegExp(`/src/inference/${runtime}\\.ts(?:\\?.*)?$`);
   await page.route(modulePattern, async (route) => {
     await route.fulfill({
@@ -49,7 +61,7 @@ async function simulate(
         this.diagnostics = diagnostics;
       }
     }
-    export class ${runtime === 'webllm' ? 'WebLlmDetector' : 'TransformersJsDetector'} {
+    export class ${runtime === 'webllm' ? 'WebLlmDetector' : runtime === 'transformersjs' ? 'TransformersJsDetector' : 'GeminiNanoDetector'} {
       calls = 0;
       model = null;
       async load(model, progress) {
@@ -59,7 +71,7 @@ async function simulate(
         if (${JSON.stringify(mode)} === 'load-memory-error') {
           throw "Can't create a session. ERROR_CODE: 6, ERROR_MESSAGE: std::bad_alloc";
         }
-        return ${runtime === 'webllm' ? 'model' : 'model + "#q4f16"'};
+        return ${runtime === 'webllm' ? 'model' : runtime === 'transformersjs' ? 'model + "#q4f16"' : '"gemini-nano@chrome-managed"'};
       }
       async detect(text) {
         this.calls++;
@@ -68,7 +80,7 @@ async function simulate(
           : ${mode === 'slow-run' ? 60_000 : 30};
         await new Promise(resolve => setTimeout(resolve, delay));
         if (${JSON.stringify(mode)} === 'runtime-error') {
-          throw ${JSON.stringify(`Error: Simulated ${runtime === 'webllm' ? 'WebLLM' : 'Transformers.js'} worker failure`)};
+          throw ${JSON.stringify(`Error: Simulated ${runtime === 'webllm' ? 'WebLLM worker' : runtime === 'transformersjs' ? 'Transformers.js worker' : 'Gemini Nano runtime'} failure`)};
         }
         const reportedRaw = '<think>\\n\\n</think>\\n\\n' + JSON.stringify({entities: [
           {text: 'Alice Morgan', category: 'PERSON'},
@@ -130,9 +142,7 @@ async function simulate(
   await page.goto(`/#/${runtime}`);
 }
 
-test('welcome screen lists available and planned experiments', async ({
-  page,
-}) => {
+test('welcome screen lists all available experiments', async ({ page }) => {
   await page.goto('/');
 
   await expect(
@@ -148,8 +158,56 @@ test('welcome screen lists available and planned experiments', async ({
   await expect(
     page.getByRole('heading', { name: 'Gemini Nano' }),
   ).toBeVisible();
-  await expect(page.getByText('Planned', { exact: true })).toHaveCount(1);
+  await expect(page.getByRole('link', { name: /Gemini Nano/ })).toHaveAttribute(
+    'href',
+    '#/gemini-nano',
+  );
+  await expect(page.getByText('Available', { exact: true })).toHaveCount(3);
   await expect(page.getByRole('button', { name: 'Load model' })).toHaveCount(0);
+});
+
+test('Gemini Nano uses Chrome-managed metadata and the shared workflow', async ({
+  page,
+}) => {
+  await simulate(page, 'normal', 'gemini-nano');
+  const model = page.getByLabel('Model', { exact: true });
+  await expect(model.locator('option')).toHaveCount(1);
+  await expect(model.locator('option')).toHaveText(
+    'Gemini Nano · Chrome managed',
+  );
+  await expect(
+    page.getByText(/Chrome Prompt API · browser-managed model/),
+  ).toBeVisible();
+  await expect(page.getByText(/Chrome-default sampling/)).toBeVisible();
+
+  await page.getByRole('button', { name: 'Load model' }).click();
+  await expect(page.getByRole('status')).toContainText('Ready on device');
+  await page.getByRole('button', { name: 'Anonymise text' }).click();
+  await expect(page.getByTestId('output')).toHaveText(
+    'Hi, I’m [PERSON_1].\nPlease email [EMAIL_1] or call [PHONE_1].\n\n[PERSON_1] will send the report on Friday.',
+  );
+
+  await page.getByRole('link', { name: '02 Evaluation' }).click();
+  await page.getByRole('button', { name: 'Run 5 examples' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Export results' }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Export results' }).click();
+  const report = JSON.parse(
+    (await page.evaluate(
+      () =>
+        (window as typeof window & { __piiLabEvaluation?: string })
+          .__piiLabEvaluation,
+    ))!,
+  );
+  expect(report.runtime).toBe('Chrome Prompt API');
+  expect(report.model).toBe('gemini-nano@chrome-managed');
+  expect(report.generationConstraint).toBe('json-schema');
+  expect(report.responseParserVersion).toBe('gemini-nano-json-schema-v1');
+  expect(report.temperature).toBeNull();
+  expect(report.thinking).toBeNull();
+  expect(report.promptVersion).toBe('v2');
+  expect(report.fixtures).toHaveLength(5);
 });
 
 test('leaving the WebLLM experiment unloads its model', async ({ page }) => {
@@ -534,6 +592,19 @@ test('unsupported browser shows guidance without starting a model', async ({
   });
   await page.goto('/#/webllm');
   await expect(page.getByRole('alert')).toContainText('does not expose WebGPU');
+  await expect(page.getByRole('button', { name: 'Load model' })).toBeDisabled();
+});
+
+test('Gemini Nano requires the current LanguageModel API, not WebGPU', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    delete (Navigator.prototype as unknown as Record<string, unknown>).gpu;
+    delete (window as typeof window & { LanguageModel?: unknown })
+      .LanguageModel;
+  });
+  await page.goto('/#/gemini-nano');
+  await expect(page.getByRole('alert')).toContainText('LanguageModel API');
   await expect(page.getByRole('button', { name: 'Load model' })).toBeDisabled();
 });
 

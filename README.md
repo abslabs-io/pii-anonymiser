@@ -2,22 +2,22 @@
 
 A desktop browser experiment: use a small local language model to detect personal information, then replace exact spans with tokens while preserving the rest of the text.
 
-Two implementations run the same Qwen3 models through **WebLLM** and **Transformers.js**. Each offers Qwen3-0.6B and Qwen3-1.7B for deliberate, sequential comparisons. This is an experimental detector, not a guarantee that all identifying information has been removed.
+Three implementations compare **WebLLM**, **Transformers.js**, and Chrome's built-in **Gemini Nano** through the Prompt API. The first two offer Qwen3-0.6B and Qwen3-1.7B for deliberate, sequential comparisons; Chrome selects and updates its own model variant. This is an experimental detector, not a guarantee that all identifying information has been removed.
 
 ![The workbench with invented sample text, before model loading or inference](docs/workbench.png)
 
 ## Run locally
 
-Requirements: Node.js 22.12+ (Node 24 recommended), npm, and a desktop browser with WebGPU. Start with a current browser and graphics acceleration enabled. If the GPU lacks `shader-f16`, WebLLM selects the same model's `q4f32_1` export and Transformers.js selects its `q4` export. The page displays “compatibility mode”; this can consume more memory and run slower, but never switches to a larger model or remote service.
+Requirements: Node.js 22.12+ (Node 24 recommended), npm, and a current desktop browser. The Qwen experiments require WebGPU and graphics acceleration. If the GPU lacks `shader-f16`, WebLLM selects the same model's `q4f32_1` export and Transformers.js selects its `q4` export. The page displays “compatibility mode”; this can consume more memory and run slower, but never switches to a larger model or remote service. Gemini Nano uses Chrome's separate hardware eligibility policy described below.
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Open <http://127.0.0.1:5173>. The welcome screen lists the available and planned browser-local experiments. No API key, environment file, or inference backend is needed.
+Open <http://127.0.0.1:5173>. The welcome screen lists the browser-local experiments. No API key, environment file, or inference backend is needed.
 
-1. Open the **WebLLM** or **Transformers.js** experiment, choose a model, and click **Load model**. The first visit downloads that runtime's weights and engine.
+1. Open an experiment, choose the model where a choice is available, and click **Load model**. The first visit downloads that runtime's model assets. Gemini Nano requires a supported current desktop Chrome release and an eligible device.
 2. Paste a short passage or select an invented sample.
 3. Click **Anonymise text** and review the highlighted detections and tokenised output.
 4. Use **Evaluation** to run five labelled examples sequentially and export a JSON report.
@@ -27,23 +27,30 @@ Use **Inspect model response** after a completed attempt to see the exact respon
 
 Each evaluation case has its own response inspector. A completed response that fails JSON or exact-span validation is recorded without anonymised output, and evaluation continues to the next fixture. While inference is active, the evaluation panel identifies the case currently running and counts every processed case, including failures. A runtime failure or timeout stops the run and unloads the model because the underlying generation may still be active. Evaluation exports include only the invented fixtures and their responses, including failed cases, so the experiment can be diagnosed without exporting workbench text.
 
-The initial limit is **2,000 UTF-8 bytes per passage**, with a 4,096-token model context and at most 1,024 output tokens. This deliberately keeps the experiment focused on short passages. UTF-8 bytes are not model tokens; engine context errors are reported rather than silently truncating documents.
+The initial limit is **2,000 UTF-8 bytes per passage**. The Qwen runtimes use a 4,096-token model context and at most 1,024 output tokens. Chrome manages Gemini Nano's context and output limits; quota errors are reported rather than silently truncating documents. This deliberately keeps the experiment focused on short passages. UTF-8 bytes are not model tokens.
 
 ## What runs where
 
 ```text
-Original text → selected runtime in a browser worker → exact strings + categories
+Original text → selected browser-local runtime → exact strings + categories
               → validate against original → deterministic token replacement
 ```
 
 - React/TypeScript renders the app; Vite serves and builds it.
-- WebLLM or Transformers.js with ONNX Runtime Web runs the model on the browser's GPU, inside a dedicated worker.
+- WebLLM or Transformers.js with ONNX Runtime Web runs Qwen3 on the browser's GPU, inside a dedicated worker.
+- The Prompt API runs Chrome's built-in Gemini Nano model in the browser. The API is currently exposed only to the page, not a worker; Chrome keeps inference inside its own model service.
 - Model code loads only after clicking **Load model**.
 - Input, output, and token mappings stay in page memory. Reloading clears them.
 - No analytics, remote fonts, inference API, or automatic text logging is included.
-- Initial downloads contact Hugging Face and, for WebLLM, its runtime host. Those requests reveal normal network metadata, but do not contain the text being processed.
-- Model assets are cached by the selected runtime in browser storage. Cache eviction/private browsing can cause another download. This app does not promise a fully offline page reload.
-- One model runs at a time within the app tab. Idle unload asks the runtime to release its GPU resources, then terminates its worker (with a two-second fallback deadline). Controls stay locked until cleanup finishes. Cancellation and page exit terminate immediately; cached files remain on disk. Opening multiple tabs can allocate multiple models.
+- Qwen downloads contact Hugging Face and, for WebLLM, its runtime host. Chrome manages the Gemini Nano download. Those downloads reveal normal network metadata, but model inputs are not sent with them.
+- Model assets are cached or managed by the selected runtime. Cache eviction, Chrome's model-management policy, or private browsing can cause another download. This app does not promise a fully offline page reload.
+- One model runs at a time within the app tab. Idle unload releases the selected runtime's engine or Prompt API session. Cancellation and page exit abort current work and release the app's worker or session; cached files remain on disk. Chrome ultimately controls the lifetime of its shared built-in model. Opening multiple tabs can allocate multiple sessions or models.
+
+## Gemini Nano requirements and comparison limits
+
+The Gemini Nano experiment targets only the current global `LanguageModel` Prompt API; it does not support the obsolete `window.ai` API. Chrome's current documented requirements include Windows 10/11, macOS 13+, Linux, or supported Chromebook Plus devices; at least 22 GB free on the Chrome-profile volume; and either more than 4 GB VRAM or at least 16 GB RAM with four CPU cores. An unmetered connection is required for the initial model download. Chrome for Android and iOS is not supported. See the official [Prompt API](https://developer.chrome.com/docs/ai/prompt-api) and [model-management](https://developer.chrome.com/docs/ai/understand-built-in-model-management) documentation for the current requirements.
+
+Chrome may choose a larger or smaller Gemini Nano variant for the device and can replace it during browser updates. JavaScript cannot query the exact model version. The web API also does not expose numeric sampling controls by default, a thinking-mode switch, finish reasons, or output-token counts. Reports therefore use `gemini-nano@chrome-managed`, record the browser user agent, use `null` for unavailable generation fields, and should be compared by browser version and run date. Each detection clones a clean session containing prompt v2, then destroys that clone, so prior workbench inputs and earlier evaluation fixtures cannot enter later model context.
 
 ## When WebGPU stops working
 
@@ -55,16 +62,17 @@ Transformers.js translates several known low-level failures into actionable mess
 
 ## Models and sizes
 
-| Runtime         | Model/export                           | Approximate download |
-| --------------- | -------------------------------------- | -------------------: |
-| WebLLM          | `Qwen3-0.6B-q4f16_1-MLC`               |               352 MB |
-| WebLLM          | `Qwen3-1.7B-q4f16_1-MLC`               |               984 MB |
-| Transformers.js | `onnx-community/Qwen3-0.6B-ONNX` q4f16 |               570 MB |
-| Transformers.js | `onnx-community/Qwen3-1.7B-ONNX` q4f16 |              1.43 GB |
+| Runtime           | Model/export                           | Approximate download |
+| ----------------- | -------------------------------------- | -------------------: |
+| WebLLM            | `Qwen3-0.6B-q4f16_1-MLC`               |               352 MB |
+| WebLLM            | `Qwen3-1.7B-q4f16_1-MLC`               |               984 MB |
+| Transformers.js   | `onnx-community/Qwen3-0.6B-ONNX` q4f16 |               570 MB |
+| Transformers.js   | `onnx-community/Qwen3-1.7B-ONNX` q4f16 |              1.43 GB |
+| Chrome Prompt API | Gemini Nano, Chrome-managed variant    |   Not exposed by API |
 
-The compiled runtimes are additional downloads. Running memory and loading peaks exceed download size and depend on browser, GPU, context, and runtime. WebLLM sizes are from its [0.6B](https://huggingface.co/mlc-ai/Qwen3-0.6B-q4f16_1-MLC/tree/main) and [1.7B](https://huggingface.co/mlc-ai/Qwen3-1.7B-q4f16_1-MLC/tree/main) repositories. Transformers.js sizes are the q4f16 files in the ONNX Community [0.6B](https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX/tree/main/onnx) and [1.7B](https://huggingface.co/onnx-community/Qwen3-1.7B-ONNX/tree/main/onnx) repositories. The Transformers.js `q4` compatibility files are approximately 919 MB and 2.15 GB. Sizes were checked on 2026-09-15.
+The Qwen runtimes are additional downloads. Running memory and loading peaks exceed download size and depend on browser, GPU, context, and runtime. WebLLM sizes are from its [0.6B](https://huggingface.co/mlc-ai/Qwen3-0.6B-q4f16_1-MLC/tree/main) and [1.7B](https://huggingface.co/mlc-ai/Qwen3-1.7B-q4f16_1-MLC/tree/main) repositories. Transformers.js sizes are the q4f16 files in the ONNX Community [0.6B](https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX/tree/main/onnx) and [1.7B](https://huggingface.co/onnx-community/Qwen3-1.7B-ONNX/tree/main/onnx) repositories. The Transformers.js `q4` compatibility files are approximately 919 MB and 2.15 GB. Sizes were checked on 2026-09-15.
 
-Thinking is disabled and generation is deterministic: WebLLM uses temperature zero, while Transformers.js uses greedy generation (`do_sample: false`). WebLLM applies a JSON schema during generation. Transformers.js 4.2.0 has no equivalent built-in structured-generation constraint, so it relies on the same prompt followed by strict JSON and exact-span validation. Its parser accepts plain JSON or one exact outer `json` Markdown fence, while still rejecting commentary, reasoning, unsupported categories, malformed JSON, and partial output. Evaluation exports record the generation constraint and parser version. The package and lockfile pin both runtimes. Upstream model URLs currently follow their repositories' default revisions, so record the date of comparisons; bit-for-bit model reproducibility would additionally require pinning model revisions/assets.
+Thinking is disabled for Qwen3 and its generation is deterministic: WebLLM uses temperature zero, while Transformers.js uses greedy generation (`do_sample: false`). WebLLM and the Chrome Prompt API apply the same JSON schema during generation. Transformers.js 4.2.0 has no equivalent built-in structured-generation constraint, so it relies on the same prompt followed by strict JSON and exact-span validation. Its parser accepts plain JSON or one exact outer `json` Markdown fence, while still rejecting commentary, reasoning, unsupported categories, malformed JSON, and partial output. Gemini Nano uses Chrome's default web sampling because numeric controls are unavailable by default; repeat runs are needed to measure variation. Evaluation exports record the generation constraint and parser version. The package and lockfile pin both Qwen runtimes, while Chrome manages Gemini Nano. Upstream Qwen model URLs currently follow their repositories' default revisions, so record the date of comparisons; bit-for-bit reproducibility would additionally require pinning model revisions/assets and is not available for the Chrome-managed model.
 
 The pinned WebLLM 0.2.82 runtime includes an exact empty thinking prefix (`<think>\n\n</think>\n\n`) in returned content when thinking is disabled. The adapter removes only that prefix before strict JSON validation. The response inspector retains it verbatim. Other reasoning, Markdown wrappers, malformed JSON, and truncated responses remain errors.
 
@@ -94,7 +102,7 @@ npm run eval:model     # REAL model: opens Chromium, runs fixtures, saves a repo
 
 `test:e2e` does not establish model accuracy. It intercepts the detector module in the dev server only; no simulated engine is shipped in the app.
 
-`eval:model` (also available as `test:model`) starts the development server itself and requires a usable GPU and a display by default. It uses `.model-cache/` as a persistent Chromium profile so model downloads survive later runs, and saves timestamped reports under `model-evaluation-results/`. This profile is separate from normal Chrome, so its first run may download the model again. Both directories are ignored by Git. The runner prints aggregate counts without printing fixture text or model responses and saves its report before finishing. Misses, extra detections, and incomplete cases are experimental results, so they do not fail the command by default. Set `MODEL_STRICT=1` when you specifically want a zero-miss, zero-extra regression gate. Even a strict pass applies only to this small diagnostic set; it does not establish that a model is safe for general PII anonymisation.
+`eval:model` (also available as `test:model`) starts the development server itself and uses a visible browser by default. The Qwen runtimes require a usable GPU; Gemini Nano requires an eligible Chrome installation. The runner uses a runtime-specific persistent automation profile under `.model-cache/` so model downloads can survive later runs, and saves timestamped reports under `model-evaluation-results/`. These profiles are separate from normal browser profiles, so a first run may download the model again. Both directories are ignored by Git. The runner prints aggregate counts without printing fixture text or model responses and saves its report before finishing. Misses, extra detections, and incomplete cases are experimental results, so they do not fail the command by default. Set `MODEL_STRICT=1` when you specifically want a zero-miss, zero-extra regression gate. Even a strict pass applies only to this small diagnostic set; it does not establish that a model is safe for general PII anonymisation.
 
 Run WebLLM with 0.6B once, or repeat it three times to inspect stability:
 
@@ -134,7 +142,23 @@ Remove-Item Env:MODEL_RUNTIME
 Remove-Item Env:MODEL_ID
 ```
 
-Optional runner settings: `MODEL_STRICT=1` enables the strict quality gate; `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` selects an existing Chromium executable; `MODEL_PROFILE_DIR` and `MODEL_REPORT_DIR` change the persistent profile and report locations; `MODEL_HEADLESS=1` runs headless; `MODEL_SOFTWARE_GPU=1` enables an experimental SwiftShader path. Software GPU timings are not representative of desktop GPU performance. Do not commit the browser profile, model weights, or unreviewed reports.
+Run Chrome's built-in Gemini Nano in the installed stable Chrome browser:
+
+```sh
+MODEL_RUNTIME=gemini-nano npm run eval:model
+```
+
+Or in Windows PowerShell:
+
+```powershell
+$env:MODEL_RUNTIME = 'gemini-nano'
+npm run eval:model
+Remove-Item Env:MODEL_RUNTIME
+```
+
+The Gemini Nano runner selects the installed Chrome channel by default and uses `.model-cache/gemini-nano-chrome` as its automation profile. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` if Chrome is installed in a nonstandard location. A fresh profile may trigger Chrome's eligibility checks and initial model download. Do not set `MODEL_ID`; the browser chooses the model variant.
+
+Optional runner settings: `MODEL_STRICT=1` enables the strict quality gate; `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` selects an existing browser executable; `MODEL_PROFILE_DIR` and `MODEL_REPORT_DIR` change the persistent profile and report locations; `MODEL_HEADLESS=1` runs headless; `MODEL_SOFTWARE_GPU=1` enables an experimental SwiftShader path for the two WebGPU runtimes. Software GPU mode does not apply to Gemini Nano, and its timings are not representative of desktop GPU performance. Do not commit the browser profile, model weights, or unreviewed reports.
 
 Evaluation checks exact span and category matches, including repeated occurrences. It reports correct, missed, and extra detections. Completed validation failures remain failures and produce no partial output, but do not prevent later fixtures from running. Runtime failures stop the run. Five invented cases are a diagnostic set, not an accuracy benchmark. See the [experiment journal](docs/experiment-journal.md) for actual validation status and findings.
 
@@ -144,6 +168,8 @@ The first Transformers.js hardware-WebGPU run used Qwen3-0.6B q4f16 in Firefox 1
 
 The parser-v2 0.6B rerun returned exactly the same five raw responses and token counts. Fence normalization allowed three documents to produce output; one response still failed because it used an unsupported category, and one failed because it contained a non-source literal. Across output actually published by the app, only 2/11 expected spans were replaced, 9 were missed, and 7 incorrect replacements were added (22.2% precision, 18.2% recall, 20.0% F1). See the [reviewed parser-v2 result](docs/evidence/2026-09-15-qwen3-0.6b-transformersjs-parser-v2.json). The parser fix resolved the formatting problem but did not make the 0.6B model reliable.
 
+Gemini Nano infrastructure is implemented against Chrome's current Prompt API, but no real-model result has been reviewed yet. Simulated tests establish routing, lifecycle, strict response handling, export metadata, and fixture orchestration only. Run `MODEL_RUNTIME=gemini-nano npm run eval:model` on an eligible Chrome installation to produce the first model-quality evidence.
+
 ## Production build
 
 ```sh
@@ -151,19 +177,19 @@ npm run build
 npm run preview
 ```
 
-Serve `dist/` on an HTTPS static host. Page navigation uses hashes, so no server route rewrites are required: `#/` lists experiments; `#/webllm` and `#/transformersjs` open their workbenches; adding `/evaluation` opens each evaluation page. The initial JavaScript bundle excludes both lazily loaded inference engines. The build reports large runtime chunks and a WASM asset; they are requested only by the selected experiment's worker. GPU inference requires HTTPS or localhost. These WebGPU implementations do not need the cross-origin-isolation headers that some multithreaded WASM approaches require.
+Serve `dist/` on an HTTPS static host. Page navigation uses hashes, so no server route rewrites are required: `#/` lists experiments; `#/webllm`, `#/transformersjs`, and `#/gemini-nano` open their workbenches; adding `/evaluation` opens each evaluation page. The initial JavaScript bundle excludes the lazily loaded inference adapters. The build reports large runtime chunks and a WASM asset; they are requested only by the selected Qwen experiment's worker. Browser-local inference requires HTTPS or localhost. These WebGPU implementations do not need the cross-origin-isolation headers that some multithreaded WASM approaches require.
 
 ## Repository map
 
-| Location                     | Purpose                                                          |
-| ---------------------------- | ---------------------------------------------------------------- |
-| `src/core/`                  | Pure span replacement, output validation, fixtures, and scoring  |
-| `src/inference/`             | Shared detector contract plus WebLLM and Transformers.js workers |
-| `src/App.tsx`                | Welcome screen and lightweight experiment routing                |
-| `src/experiments/`           | Runtime-specific experiment pages and their lifecycle UI         |
-| `tests/browser/`             | Browser workflows with simulated inference                       |
-| `tests/model/`               | Opt-in real model evaluation                                     |
-| `docs/experiment-journal.md` | Decisions, progress, evidence, and article material              |
+| Location                     | Purpose                                                         |
+| ---------------------------- | --------------------------------------------------------------- |
+| `src/core/`                  | Pure span replacement, output validation, fixtures, and scoring |
+| `src/inference/`             | Shared detector contract and runtime-specific adapters/workers  |
+| `src/App.tsx`                | Welcome screen and lightweight experiment routing               |
+| `src/experiments/`           | Runtime-specific experiment pages and their lifecycle UI        |
+| `tests/browser/`             | Browser workflows with simulated inference                      |
+| `tests/model/`               | Opt-in real model evaluation                                    |
+| `docs/experiment-journal.md` | Decisions, progress, evidence, and article material             |
 
 For contribution expectations see [CONTRIBUTING.md](CONTRIBUTING.md). Coding agents should read [AGENTS.md](AGENTS.md). Another runtime can implement `Detector` while reusing the same replacement logic and fixture scoring.
 

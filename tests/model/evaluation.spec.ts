@@ -22,12 +22,17 @@ type Report = {
 };
 
 const modelRuntime =
-  process.env.MODEL_RUNTIME === 'transformersjs' ? 'transformersjs' : 'webllm';
+  process.env.MODEL_RUNTIME === 'transformersjs' ||
+  process.env.MODEL_RUNTIME === 'gemini-nano'
+    ? process.env.MODEL_RUNTIME
+    : 'webllm';
 const selectedModel =
-  process.env.MODEL_ID ??
-  (modelRuntime === 'transformersjs'
-    ? 'onnx-community/Qwen3-0.6B-ONNX'
-    : 'Qwen3-0.6B-q4f16_1-MLC');
+  modelRuntime === 'gemini-nano'
+    ? 'gemini-nano'
+    : (process.env.MODEL_ID ??
+      (modelRuntime === 'transformersjs'
+        ? 'onnx-community/Qwen3-0.6B-ONNX'
+        : 'Qwen3-0.6B-q4f16_1-MLC'));
 const softwareGpu = process.env.MODEL_SOFTWARE_GPU === '1';
 const headless = process.env.MODEL_HEADLESS === '1';
 const strict = process.env.MODEL_STRICT === '1';
@@ -35,28 +40,34 @@ const profileDirectory = resolve(
   process.env.MODEL_PROFILE_DIR ??
     (modelRuntime === 'webllm'
       ? '.model-cache/chromium'
-      : '.model-cache/transformersjs-chromium'),
+      : `.model-cache/${modelRuntime}-chrome`),
 );
 const reportDirectory = resolve(
   process.env.MODEL_REPORT_DIR ?? 'model-evaluation-results',
 );
 
 // Real engine, real model download. Deliberately separate from default CI.
-test(`evaluate ${selectedModel} through ${modelRuntime} on the browser GPU`, async ({}, testInfo) => {
+test(`evaluate ${selectedModel} through ${modelRuntime} in the browser`, async ({}, testInfo) => {
   await mkdir(profileDirectory, { recursive: true });
   const context = await chromium.launchPersistentContext(profileDirectory, {
     acceptDownloads: true,
     baseURL: 'http://127.0.0.1:5173',
     executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+    channel:
+      modelRuntime === 'gemini-nano' &&
+      !process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+        ? 'chrome'
+        : undefined,
     headless,
     viewport: { width: 1280, height: 900 },
-    args: softwareGpu
-      ? [
-          '--enable-unsafe-webgpu',
-          '--use-angle=swiftshader',
-          '--enable-features=Vulkan',
-        ]
-      : [],
+    args:
+      softwareGpu && modelRuntime !== 'gemini-nano'
+        ? [
+            '--enable-unsafe-webgpu',
+            '--use-angle=swiftshader',
+            '--enable-features=Vulkan',
+          ]
+        : [],
   });
   const page = context.pages()[0] ?? (await context.newPage());
   // Read the exact JSON Blob produced by the app. Chromium does not always
@@ -174,7 +185,8 @@ test(`evaluate ${selectedModel} through ${modelRuntime} on the browser GPU`, asy
     };
     report.runner = {
       browserVersion: context.browser()?.version() ?? 'unknown',
-      softwareGpuRequested: softwareGpu,
+      softwareGpuRequested: softwareGpu && modelRuntime !== 'gemini-nano',
+      chromeManagedModel: modelRuntime === 'gemini-nano',
       headless,
       strictRequested: strict,
       repeatIndex: testInfo.repeatEachIndex,

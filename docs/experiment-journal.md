@@ -276,6 +276,24 @@ The reviewed raw-model totals remain 6/11 correct, 5 missed, and 14 extra becaus
 
 **Verification:** `npm run format` and `npm run check` passed, including strict TypeScript, the production build, and all 58 unit/lifecycle tests. The new pure classifier tests cover each known failure family and verbatim fallback for unknown errors. All 17 simulated Playwright browser tests passed, including the full 1.7B `std::bad_alloc` alert and return to the unloaded state. These tests validate error handling with a simulated detector; they are not another model run or evidence that the 1.7B model can load on the author's hardware.
 
+## 2026-09-15 — Chrome built-in Gemini Nano experiment
+
+**User direction:** Make Gemini Nano the third available experiment. Target only Chrome's current API rather than retaining compatibility with the obsolete `window.ai` shape, and extend the real-model runner so the same five fixtures can be evaluated on a supported Chrome installation.
+
+**Current API observations:** Chrome's current [Prompt API documentation](https://developer.chrome.com/docs/ai/prompt-api) exposes Gemini Nano through the global `LanguageModel` API. It supports JSON Schema through `responseConstraint`, download progress through the session-creation monitor, abort signals, cloning, and explicit session destruction. It is not exposed in Web Workers. The web API does not expose numeric sampling controls by default. Chrome's [model-management documentation](https://developer.chrome.com/docs/ai/understand-built-in-model-management) says the browser may choose different model sizes for different hardware, updates models independently, and does not expose the installed model version to JavaScript. These are upstream API facts checked on 2026-09-15, not observations from a model run.
+
+**Decision:** Use prompt v2, fixture set v1, the existing entity JSON Schema, 2,000-byte input limit, 120-second inference timeout, strict JSON/entity parsing, atomic exact-span validation, deterministic replacement, and the existing scoring workflow. Create one base Prompt API session with the system prompt as an initial prompt. For each workbench or evaluation request, clone that unmodified base, prompt the clone with only the current JSON-wrapped input, and destroy it afterward. This avoids conversation carryover between fixtures while keeping model initialization explicit. Cancellation, timeout, unload, route changes, and page exit abort pending work and destroy both the request clone and base session.
+
+**Unavoidable comparison differences:** Chrome controls Gemini Nano's exact variant, version, context/output limits, and default sampling. The API does not provide a thinking-mode setting, finish reason, or output-token count. The UI labels the model as Chrome-managed, and exports use `gemini-nano@chrome-managed` plus the browser user agent while recording unavailable temperature and thinking fields as `null`. Unlike the two Qwen paths, the adapter runs in the page because Chrome does not expose `LanguageModel` to workers; model execution still occurs inside Chrome's local model service. No remote fallback, analytics, input logging, or automatic persistence was added.
+
+**Availability and downloads:** Feature detection requires the current `LanguageModel` global and a secure context, not WebGPU. `availability()` distinguishes unsupported hardware from downloadable, downloading, and ready states; `create()` is called only from the explicit load action and reports browser-managed download progress. Chrome may use GPU or CPU under its own eligibility rules. The app releases its sessions, while Chrome retains control over the installed shared model and may update or purge it independently.
+
+**Evaluation runner:** `MODEL_RUNTIME=gemini-nano npm run eval:model` selects the installed stable Chrome channel by default, keeps a separate ignored automation profile, runs the same UI evaluation, and saves the same report shape and aggregate runner summary. `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` can select a nonstandard Chrome install. `MODEL_ID` is intentionally unnecessary because the browser chooses the model. The SwiftShader option remains limited to the WebGPU runtimes.
+
+**Evidence status:** No real Gemini Nano inference has run in this development environment, so there is no reviewed accuracy or timing result yet. The author subsequently reported that an external desktop run completed and appeared to perform very well, which is useful confirmation that the real Chrome path works but is not a quantitative result. Its export was not present in this workspace at review time, so no score or raw response has been inferred or committed. Unit and simulated browser tests exercise API availability, structured requests, clean-session isolation, download progress, cancellation, timeouts, strict parsing, routing, export metadata, and the shared workbench/evaluation flow. These remain infrastructure checks. Preserve and review the desktop export before making a model-quality comparison.
+
+**Verification:** `npm run format` and `npm run check` passed, including strict TypeScript, the production build, and all 67 unit/lifecycle tests. All 19 Playwright browser tests passed with explicitly simulated detectors. `MODEL_RUNTIME=gemini-nano npx playwright test --config playwright.model.config.ts --list` discovered the intended real-model run without launching it. This environment has no installed Google Chrome executable, so it cannot expose or evaluate Chrome's built-in model; that is an environment limitation, not a model result.
+
 ## Article outline (working)
 
 1. Why try PII detection in a browser?
@@ -284,7 +302,8 @@ The reviewed raw-model totals remain 6/11 correct, 5 missed, and 14 extra becaus
 4. Downloads, model lifetime, and the difference between disk and GPU memory.
 5. What the smallest model actually gets right and wrong.
 6. What changed after testing, with reproducible examples.
-7. Limits of this experiment and the next runtime comparison.
+7. What changes when the model and runtime are managed by Chrome.
+8. Limits of this experiment and the next runtime comparison.
 
 ## Recording rules
 
