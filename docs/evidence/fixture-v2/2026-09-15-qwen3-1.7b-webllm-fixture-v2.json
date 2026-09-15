@@ -1,0 +1,131 @@
+{
+  "experiment": "PII Lab",
+  "source": "Reviewed summary of an automated fixture-v2 run launched from WSL through Windows Node and headless Windows Chrome. The full generated report remains in the ignored model-evaluation-results directory because it contains raw model responses.",
+  "model": "Qwen3-1.7B-q4f16_1-MLC",
+  "runtime": "WebLLM 0.2.82",
+  "timestamp": "2026-09-15T20:58:02.498Z",
+  "environment": {
+    "browser": "Chrome 152.0.7977.83",
+    "operatingSystem": "Windows through WSL automation",
+    "headless": true,
+    "gpu": "unknown",
+    "note": "The runtime model confirms shader-f16 availability. No GPU adapter details were captured."
+  },
+  "fixtureSet": "v2",
+  "promptVersion": "v2",
+  "responseParserVersion": "webllm-empty-thinking-v1",
+  "generationConstraint": "json-schema",
+  "temperature": 0,
+  "thinking": false,
+  "appComplete": false,
+  "processedCases": 15,
+  "completedModelResponses": 15,
+  "runtimeFailures": 0,
+  "validationFailures": 2,
+  "documentsWithOutput": 13,
+  "appScoredCases": {
+    "cases": 13,
+    "expectedSpans": 25,
+    "detectedSpans": 42,
+    "correctSpans": 19,
+    "missedSpans": 6,
+    "extraSpans": 23,
+    "precision": 0.4523809523809524,
+    "recall": 0.76,
+    "f1": 0.5671641791044776
+  },
+  "reviewedAllCases": {
+    "method": "The thirteen accepted cases use app scores. The two completed rejected responses were reviewed using the established occurrence-level method: exact duplicate literal/category pairs are deduplicated, returned literals are expanded to their source occurrences, unmatched or conflicting detections count as extras, and only exact expected span/category pairs count as correct.",
+    "expectedSpans": 30,
+    "detectedSpans": 54,
+    "correctSpans": 23,
+    "missedSpans": 7,
+    "extraSpans": 31,
+    "precision": 0.42592592592592593,
+    "recall": 0.7666666666666667,
+    "f1": 0.5476190476190477,
+    "strictPass": false
+  },
+  "endToEndOutput": {
+    "method": "Rejected documents produce no partial output. Their five expected occurrences therefore count as missed, while their rejected raw detections do not count as output replacements.",
+    "expectedSpans": 30,
+    "outputSpans": 42,
+    "correctSpans": 19,
+    "missedSpans": 11,
+    "extraSpans": 23,
+    "precision": 0.4523809523809524,
+    "recall": 0.6333333333333333,
+    "f1": 0.5277777777777778,
+    "documentsWithOutput": 13,
+    "documents": 15
+  },
+  "timing": {
+    "totalDurationMs": 277637.6999999285,
+    "meanDurationMs": 18509.17999999523,
+    "medianDurationMs": 18074.700000047684,
+    "outputTokens": 947,
+    "note": "Timing includes all fifteen completed generations, including the two responses rejected by validation."
+  },
+  "validationFailureReview": [
+    {
+      "name": "Contact details",
+      "error": "Two generated literals did not occur in the source, so atomic exact-span validation rejected the document.",
+      "reviewedScore": {
+        "expected": 4,
+        "detected": 5,
+        "correct": 3,
+        "missed": 1,
+        "extra": 2
+      },
+      "note": "The response matches the previously reviewed fixture-v1 1.7B contact response: it found both name occurrences and the phone, missed the real email, and invented an email plus a date-of-birth literal."
+    },
+    {
+      "name": "Name parts with ordinary meanings",
+      "error": "The response assigned conflicting categories to the repeated literals May and Chen.",
+      "reviewedScore": {
+        "expected": 1,
+        "detected": 7,
+        "correct": 1,
+        "missed": 0,
+        "extra": 6
+      }
+    }
+  ],
+  "notableAcceptedCases": [
+    "Address and date of birth, instruction-in-text, Unicode contact details, and existing token-like text were perfect.",
+    "The first clean-negative case produced four extra replacements and the second produced six.",
+    "The international phone, ID/account, multiline-address, and repeated-account cases each included misses or category/span errors.",
+    "The non-Latin name and email were both found, with one extra replacement."
+  ],
+  "comparisonWithWebLLM0_6BFixtureV2": {
+    "endToEnd": {
+      "correctSpans": {
+        "qwen3_0_6B": 17,
+        "qwen3_1_7B": 19
+      },
+      "missedSpans": {
+        "qwen3_0_6B": 13,
+        "qwen3_1_7B": 11
+      },
+      "extraSpans": {
+        "qwen3_0_6B": 28,
+        "qwen3_1_7B": 23
+      },
+      "f1": {
+        "qwen3_0_6B": 0.4533333333333333,
+        "qwen3_1_7B": 0.5277777777777778
+      }
+    },
+    "reviewedRawF1": {
+      "qwen3_0_6B": 0.4367816091954023,
+      "qwen3_1_7B": 0.5476190476190477
+    },
+    "totalDurationMs": {
+      "qwen3_0_6B": 165513.59999990463,
+      "qwen3_1_7B": 277637.6999999285
+    },
+    "durationRatio": 1.677431340990036,
+    "note": "Both runs used the same fixture set, prompt, WebLLM version, Windows Chrome version, machine, headless mode, and q4f16 export family. The larger model was directionally better but remained unreliable and took about 1.68 times as long."
+  },
+  "conclusion": "The 1.7B WebLLM path completed all fifteen generations and improved on the 0.6B path, but the gain was modest relative to the added time. Published output contained 19/30 correct expected occurrences and 23 incorrect replacements, with two documents rejected atomically. It remains unsuitable for unattended anonymisation."
+}

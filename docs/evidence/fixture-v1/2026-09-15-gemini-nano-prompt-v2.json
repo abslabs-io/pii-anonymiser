@@ -1,0 +1,152 @@
+{
+  "experiment": "PII Lab",
+  "source": "Reviewed summary of the five-case app export supplied by the project author. The export contained only fixture set v1 and no workbench text; the raw browser report is not committed.",
+  "model": "gemini-nano@chrome-managed",
+  "runtime": "Chrome Prompt API",
+  "timestamp": "2026-09-15T11:56:08.977Z",
+  "environment": {
+    "browserUserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+    "gpu": "unknown",
+    "note": "The frozen Windows user-agent token does not distinguish Windows 10 from Windows 11. Chrome does not expose the selected Gemini Nano model variant, and no GPU details were included in the export."
+  },
+  "fixtureSet": "v1",
+  "promptVersion": "v2",
+  "responseParserVersion": "gemini-nano-json-schema-v1",
+  "generationConstraint": "json-schema",
+  "temperature": null,
+  "thinking": null,
+  "appComplete": true,
+  "processedCases": 5,
+  "completedModelResponses": 5,
+  "runtimeFailures": 0,
+  "validationFailures": 0,
+  "reviewedAllCases": {
+    "method": "All five completed responses passed schema and exact-span validation, so the app scores are also the end-to-end output scores. Expected literals are counted by source occurrence.",
+    "expectedSpans": 11,
+    "detectedSpans": 17,
+    "correctSpans": 10,
+    "missedSpans": 1,
+    "extraSpans": 7,
+    "precision": 0.5882352941176471,
+    "recall": 0.9090909090909091,
+    "f1": 0.7142857142857143,
+    "totalDurationMs": 9361.5,
+    "meanDurationMs": 1872.3,
+    "medianDurationMs": 1582,
+    "outputTokens": null,
+    "strictPass": false
+  },
+  "endToEndOutput": {
+    "method": "All five documents produced output. Scores therefore match the reviewed all-case detections.",
+    "expectedSpans": 11,
+    "outputSpans": 17,
+    "correctSpans": 10,
+    "missedSpans": 1,
+    "extraSpans": 7,
+    "precision": 0.5882352941176471,
+    "recall": 0.9090909090909091,
+    "f1": 0.7142857142857143,
+    "documentsWithOutput": 5,
+    "documents": 5
+  },
+  "comparisonWithReviewedWebLLM1_7B": {
+    "correctSpans": {
+      "webllmQwen3_1_7B": 9,
+      "geminiNano": 10
+    },
+    "missedSpans": {
+      "webllmQwen3_1_7B": 2,
+      "geminiNano": 1
+    },
+    "extraSpans": {
+      "webllmQwen3_1_7B": 8,
+      "geminiNano": 7
+    },
+    "rawDetectionF1": {
+      "webllmQwen3_1_7B": 0.6428571428571428,
+      "geminiNano": 0.7142857142857143
+    },
+    "endToEndF1": {
+      "webllmQwen3_1_7B": 0.5217391304347826,
+      "geminiNano": 0.7142857142857143
+    },
+    "totalDurationMs": {
+      "webllmQwen3_1_7B": 89717.60000002384,
+      "geminiNano": 9361.5
+    },
+    "note": "This is not a controlled model or timing comparison. Chrome manages the Gemini Nano variant and sampling, and the reports do not identify the GPU. The WebLLM run used an explicitly selected Qwen model with deterministic generation."
+  },
+  "results": [
+    {
+      "name": "Contact details",
+      "score": {
+        "expected": 4,
+        "detected": 4,
+        "correct": 4,
+        "missed": 0,
+        "extra": 0
+      },
+      "durationMs": 2592
+    },
+    {
+      "name": "Address & date of birth",
+      "score": {
+        "expected": 3,
+        "detected": 5,
+        "correct": 2,
+        "missed": 1,
+        "extra": 3
+      },
+      "durationMs": 2605,
+      "missedDetections": [
+        "42 Example Lane, Bristol, BS1 1AA as one complete ADDRESS span"
+      ],
+      "extraDetections": [
+        "42 Example Lane as ADDRESS",
+        "Bristol as ADDRESS",
+        "BS1 1AA as ADDRESS"
+      ],
+      "note": "All address characters were redacted, but the model split the expected complete address into three tokens. This is a miss plus three extras under the experiment's exact-span scoring policy."
+    },
+    {
+      "name": "Account reference",
+      "score": {
+        "expected": 2,
+        "detected": 2,
+        "correct": 2,
+        "missed": 0,
+        "extra": 0
+      },
+      "durationMs": 1461.6000000238419
+    },
+    {
+      "name": "No personal information",
+      "score": {
+        "expected": 0,
+        "detected": 4,
+        "correct": 0,
+        "missed": 0,
+        "extra": 4
+      },
+      "durationMs": 1582,
+      "extraDetections": [
+        "Friday as DATE_OF_BIRTH",
+        "12 as ID",
+        "3 as ID",
+        "2,400 as ID"
+      ]
+    },
+    {
+      "name": "Instructions inside text",
+      "score": {
+        "expected": 2,
+        "detected": 2,
+        "correct": 2,
+        "missed": 0,
+        "extra": 0
+      },
+      "durationMs": 1120.9000000357628
+    }
+  ],
+  "conclusion": "This first reviewed Gemini Nano run produced the strongest raw and end-to-end score in fixture set v1: 10/11 correct expected occurrences and output for all five documents. It also incorrectly redacted four ordinary values in the no-PII fixture, so the result does not support unattended anonymisation. Chrome-managed model selection and sampling make repeat runs necessary before drawing stability conclusions."
+}

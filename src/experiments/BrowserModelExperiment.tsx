@@ -12,7 +12,7 @@ import { geminiNanoResponseParserVersion } from '../inference/gemini-nano-respon
 import { explainTransformersJsError } from '../inference/transformersjs-errors';
 import { promptVersion } from '../inference/prompt';
 import { scoreFixture, type Score } from '../core/evaluate';
-import { fixtures } from '../core/samples';
+import { fixtures, fixtureSetVersion } from '../core/samples';
 import {
   byteLength,
   geminiNanoModels,
@@ -444,7 +444,7 @@ function BrowserModelExperiment({
             runtime: config.runtime,
             timestamp: evalDate,
             browser: navigator.userAgent,
-            fixtureSet: 'v1',
+            fixtureSet: fixtureSetVersion,
             promptVersion,
             responseParserVersion: config.responseParserVersion,
             generationConstraint: config.generationConstraint,

@@ -1,0 +1,101 @@
+{
+  "experiment": "PII Lab",
+  "source": "Reviewed summary of an automated fixture-v2 run launched from WSL through Windows Node and headless Windows Chrome. The full generated report remains in the ignored model-evaluation-results directory because it contains raw model responses.",
+  "model": "Qwen3-0.6B-q4f16_1-MLC",
+  "runtime": "WebLLM 0.2.82",
+  "timestamp": "2026-09-15T20:41:00.750Z",
+  "environment": {
+    "browser": "Chrome 152.0.7977.83",
+    "operatingSystem": "Windows through WSL automation",
+    "headless": true,
+    "gpu": "unknown",
+    "note": "The runtime model confirms shader-f16 availability. No GPU adapter details were captured."
+  },
+  "fixtureSet": "v2",
+  "promptVersion": "v2",
+  "responseParserVersion": "webllm-empty-thinking-v1",
+  "generationConstraint": "json-schema",
+  "temperature": 0,
+  "thinking": false,
+  "appComplete": false,
+  "processedCases": 15,
+  "completedModelResponses": 15,
+  "runtimeFailures": 0,
+  "validationFailures": 2,
+  "documentsWithOutput": 13,
+  "appScoredCases": {
+    "cases": 13,
+    "expectedSpans": 26,
+    "detectedSpans": 45,
+    "correctSpans": 17,
+    "missedSpans": 9,
+    "extraSpans": 28,
+    "precision": 0.37777777777777777,
+    "recall": 0.6538461538461539,
+    "f1": 0.4788732394366197
+  },
+  "reviewedAllCases": {
+    "method": "The thirteen accepted cases use app scores. The two completed rejected responses were reviewed using the established occurrence-level method: exact duplicate literal/category pairs are deduplicated, returned literals are expanded to their source occurrences, unmatched or conflicting detections count as extras, and only exact expected span/category pairs count as correct.",
+    "expectedSpans": 30,
+    "detectedSpans": 57,
+    "correctSpans": 19,
+    "missedSpans": 11,
+    "extraSpans": 38,
+    "precision": 0.3333333333333333,
+    "recall": 0.6333333333333333,
+    "f1": 0.4367816091954023,
+    "strictPass": false
+  },
+  "endToEndOutput": {
+    "method": "Rejected documents produce no partial output. Their four expected occurrences therefore count as missed, while their rejected raw detections do not count as output replacements.",
+    "expectedSpans": 30,
+    "outputSpans": 45,
+    "correctSpans": 17,
+    "missedSpans": 13,
+    "extraSpans": 28,
+    "precision": 0.37777777777777777,
+    "recall": 0.5666666666666667,
+    "f1": 0.4533333333333333,
+    "documentsWithOutput": 13,
+    "documents": 15
+  },
+  "timing": {
+    "totalDurationMs": 165513.59999990463,
+    "meanDurationMs": 11034.239999993642,
+    "medianDurationMs": 10771.199999928474,
+    "outputTokens": 1250,
+    "note": "Timing includes all fifteen completed generations, including the two responses rejected by validation."
+  },
+  "validationFailureReview": [
+    {
+      "name": "ID and account distinction",
+      "error": "One returned person name did not occur in the source.",
+      "reviewedScore": {
+        "expected": 3,
+        "detected": 3,
+        "correct": 2,
+        "missed": 1,
+        "extra": 1
+      }
+    },
+    {
+      "name": "Name parts with ordinary meanings",
+      "error": "The response assigned conflicting categories to the repeated literals May and Chen.",
+      "reviewedScore": {
+        "expected": 1,
+        "detected": 9,
+        "correct": 0,
+        "missed": 1,
+        "extra": 9
+      }
+    }
+  ],
+  "notableAcceptedCases": [
+    "Contact details found all four expected occurrences but added two extras.",
+    "Address and date of birth was the only perfect original v1 case in this run.",
+    "The first clean-negative case produced thirteen extra replacements; the second produced one.",
+    "Unicode contact details was perfect, while the international phone case had no correct exact span/category matches.",
+    "The non-Latin name and email were both found, with one extra replacement."
+  ],
+  "conclusion": "The 0.6B WebLLM path completed all fifteen generations but remained unreliable. End-to-end output replaced 17/30 expected occurrences and added 28 incorrect replacements. The expanded negative cases confirm that over-redaction is not confined to a single fixture."
+}

@@ -1,0 +1,129 @@
+{
+  "experiment": "PII Lab",
+  "source": "Reviewed summary of the fixture-v2 app export supplied by the project author from their normal Chrome profile. The export contained only invented fixtures and no workbench text; the raw browser report is not committed.",
+  "model": "gemini-nano@chrome-managed",
+  "runtime": "Chrome Prompt API",
+  "timestamp": "2026-09-15T21:07:30.886Z",
+  "environment": {
+    "browser": "Chrome 152.0.0.0 user-agent token",
+    "operatingSystem": "Windows",
+    "gpu": "unknown",
+    "note": "Chrome does not expose the selected Gemini Nano model variant or execution device. The frozen Windows user-agent token does not distinguish Windows 10 from Windows 11."
+  },
+  "fixtureSet": "v2",
+  "promptVersion": "v2",
+  "responseParserVersion": "gemini-nano-json-schema-v1",
+  "generationConstraint": "json-schema",
+  "temperature": null,
+  "thinking": null,
+  "appComplete": false,
+  "processedCases": 15,
+  "completedModelResponses": 15,
+  "runtimeFailures": 0,
+  "validationFailures": 1,
+  "documentsWithOutput": 14,
+  "appScoredCases": {
+    "cases": 14,
+    "expectedSpans": 29,
+    "detectedSpans": 43,
+    "correctSpans": 26,
+    "missedSpans": 3,
+    "extraSpans": 17,
+    "precision": 0.6046511627906976,
+    "recall": 0.896551724137931,
+    "f1": 0.7222222222222222
+  },
+  "reviewedAllCases": {
+    "method": "The fourteen accepted cases use app scores. The completed rejected response was reviewed using the established occurrence-level method: exact duplicate literal/category pairs are deduplicated, returned literals are expanded to their source occurrences, conflicting detections count as extras, and only exact expected span/category pairs count as correct.",
+    "expectedSpans": 30,
+    "detectedSpans": 48,
+    "correctSpans": 27,
+    "missedSpans": 3,
+    "extraSpans": 21,
+    "precision": 0.5625,
+    "recall": 0.9,
+    "f1": 0.6923076923076923,
+    "strictPass": false
+  },
+  "endToEndOutput": {
+    "method": "The rejected document produces no partial output. Its one expected occurrence therefore counts as missed, while its rejected raw detections do not count as output replacements.",
+    "expectedSpans": 30,
+    "outputSpans": 43,
+    "correctSpans": 26,
+    "missedSpans": 4,
+    "extraSpans": 17,
+    "precision": 0.6046511627906976,
+    "recall": 0.8666666666666667,
+    "f1": 0.7123287671232876,
+    "documentsWithOutput": 14,
+    "documents": 15
+  },
+  "timing": {
+    "totalDurationMs": 26511.700000047684,
+    "meanDurationMs": 1767.4466666698456,
+    "medianDurationMs": 1675.1000000238419,
+    "outputTokens": null,
+    "note": "Chrome's Prompt API does not expose output-token counts. Timing includes all fifteen completed generations, including the response rejected by validation."
+  },
+  "validationFailureReview": [
+    {
+      "name": "Name parts with ordinary meanings",
+      "error": "The response assigned May to both PERSON and DATE_OF_BIRTH, so conflicting-category validation rejected the document.",
+      "reviewedScore": {
+        "expected": 1,
+        "detected": 5,
+        "correct": 1,
+        "missed": 0,
+        "extra": 4
+      }
+    }
+  ],
+  "notableAcceptedCases": [
+    "Contact details, Unicode contact details, international phone format, ID/account distinction, repeated account reference, and existing token-like text were perfect.",
+    "The first clean-negative case produced seven extra replacements and the second produced two.",
+    "The original and multiline address cases split the expected complete address into smaller spans.",
+    "Instruction-in-text found the person but returned only the local part of the email.",
+    "The birth-date distinction case also labelled the ordinary review date as a birth date.",
+    "The non-Latin name and email were both found, with the ordinary order reference added as an ID."
+  ],
+  "comparisonWithOtherFixtureV2Runs": {
+    "endToEnd": {
+      "geminiNano": {
+        "correctSpans": 26,
+        "missedSpans": 4,
+        "extraSpans": 17,
+        "f1": 0.7123287671232876,
+        "documentsWithOutput": 14
+      },
+      "webllmQwen3_1_7B": {
+        "correctSpans": 19,
+        "missedSpans": 11,
+        "extraSpans": 23,
+        "f1": 0.5277777777777778,
+        "documentsWithOutput": 13
+      },
+      "webllmQwen3_0_6B": {
+        "correctSpans": 17,
+        "missedSpans": 13,
+        "extraSpans": 28,
+        "f1": 0.4533333333333333,
+        "documentsWithOutput": 13
+      },
+      "transformersJsQwen3_0_6B": {
+        "correctSpans": 5,
+        "missedSpans": 25,
+        "extraSpans": 30,
+        "f1": 0.15384615384615385,
+        "documentsWithOutput": 12
+      }
+    },
+    "totalDurationMs": {
+      "geminiNano": 26511.700000047684,
+      "webllmQwen3_1_7B": 277637.6999999285,
+      "webllmQwen3_0_6B": 165513.59999990463,
+      "transformersJsQwen3_0_6B": 102941.19999992847
+    },
+    "note": "All runs used fixture set v2, prompt v2, Windows Chrome 152, and the same machine. Gemini Nano was run manually in the author's eligible normal profile, while the Qwen paths used headless dedicated profiles. Chrome does not expose Gemini's exact model variant, execution device, numeric sampling controls, or output-token count, so timing and model-quality differences describe complete technology paths rather than controlled model-only comparisons."
+  },
+  "conclusion": "Gemini Nano produced the strongest fixture-v2 result: 26/30 expected occurrences appeared in published output, with 17 incorrect replacements. It was also much faster in this complete-path comparison. However, nine extras came from the two clean-negative cases, and one ambiguous-name document was rejected, so the result still does not support unattended anonymisation. Repeat runs are needed to measure variation under Chrome-managed sampling."
+}

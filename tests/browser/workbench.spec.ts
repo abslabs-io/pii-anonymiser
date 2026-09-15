@@ -188,7 +188,7 @@ test('Gemini Nano uses Chrome-managed metadata and the shared workflow', async (
   );
 
   await page.getByRole('link', { name: '02 Evaluation' }).click();
-  await page.getByRole('button', { name: 'Run 5 examples' }).click();
+  await page.getByRole('button', { name: 'Run 15 examples' }).click();
   await expect(
     page.getByRole('button', { name: 'Export results' }),
   ).toBeEnabled();
@@ -207,7 +207,8 @@ test('Gemini Nano uses Chrome-managed metadata and the shared workflow', async (
   expect(report.temperature).toBeNull();
   expect(report.thinking).toBeNull();
   expect(report.promptVersion).toBe('v2');
-  expect(report.fixtures).toHaveLength(5);
+  expect(report.fixtureSet).toBe('v2');
+  expect(report.fixtures).toHaveLength(15);
 });
 
 test('leaving the WebLLM experiment unloads its model', async ({ page }) => {
@@ -252,7 +253,7 @@ test('Transformers.js offers both Qwen sizes and reuses the same workflow', asyn
   );
 
   await page.getByRole('link', { name: '02 Evaluation' }).click();
-  await page.getByRole('button', { name: 'Run 5 examples' }).click();
+  await page.getByRole('button', { name: 'Run 15 examples' }).click();
   await expect(
     page.getByRole('button', { name: 'Export results' }),
   ).toBeEnabled();
@@ -269,7 +270,8 @@ test('Transformers.js offers both Qwen sizes and reuses the same workflow', asyn
   expect(report.generationConstraint).toBe('prompt-only');
   expect(report.responseParserVersion).toBe('transformersjs-json-fence-v2');
   expect(report.promptVersion).toBe('v2');
-  expect(report.fixtures).toHaveLength(5);
+  expect(report.fixtureSet).toBe('v2');
+  expect(report.fixtures).toHaveLength(15);
 
   await page.getByRole('link', { name: 'PII Lab home' }).click();
   await expect
@@ -414,11 +416,11 @@ test('evaluation uses all fixtures sequentially and exports results', async ({
   await page.getByRole('link', { name: '02 Evaluation' }).click();
   await page.getByRole('button', { name: 'Load model' }).click();
   await expect(page.getByRole('status')).toContainText('Ready on device');
-  await page.getByRole('button', { name: 'Run 5 examples' }).click();
+  await page.getByRole('button', { name: 'Run 15 examples' }).click();
   await expect(
     page.getByRole('button', { name: 'Export results' }),
   ).toBeEnabled();
-  await expect(page.locator('tbody tr')).toHaveCount(5);
+  await expect(page.locator('tbody tr')).toHaveCount(15);
   await page.getByText('Inspect result', { exact: true }).first().click();
   await expect(page.locator('.case-details pre').first()).toContainText(
     '[PERSON_1]',
@@ -439,7 +441,8 @@ test('evaluation uses all fixtures sequentially and exports results', async ({
   expect(report.complete).toBe(true);
   expect(report.runtime).toBe('WebLLM 0.2.82');
   expect(capturedReport).toEqual(report);
-  expect(report.results).toHaveLength(5);
+  expect(report.fixtureSet).toBe('v2');
+  expect(report.results).toHaveLength(15);
   expect(report.results[0].score.correct).toBe(4);
   expect(report.results[0].output).toContain('[PERSON_1]');
   expect(report.promptVersion).toBe('v2');
@@ -466,11 +469,11 @@ for (const completedFailure of [
     await page.getByRole('link', { name: '02 Evaluation' }).click();
     await page.getByRole('button', { name: 'Load model' }).click();
     await expect(page.getByRole('status')).toContainText('Ready on device');
-    await page.getByRole('button', { name: 'Run 5 examples' }).click();
+    await page.getByRole('button', { name: 'Run 15 examples' }).click();
 
     await expect(page.getByRole('alert')).toContainText('completed');
     await expect(page.getByRole('status')).toContainText('Ready on device');
-    await expect(page.locator('tbody tr')).toHaveCount(5);
+    await expect(page.locator('tbody tr')).toHaveCount(15);
     await expect(
       page.getByRole('button', { name: 'Export results' }),
     ).toBeEnabled();
@@ -484,7 +487,7 @@ for (const completedFailure of [
       ))!,
     );
     expect(report.complete).toBe(false);
-    expect(report.results).toHaveLength(5);
+    expect(report.results).toHaveLength(15);
     expect(
       report.results.map((result: { name: string }) => result.name),
     ).toEqual(report.fixtures.map((fixture: { name: string }) => fixture.name));
@@ -492,7 +495,8 @@ for (const completedFailure of [
       expect(result.error).toContain(completedFailure.error);
       expect(result.diagnostics.rawContent).toBe(completedFailure.rawContent);
     }
-    expect(report.fixtures).toHaveLength(5);
+    expect(report.fixtureSet).toBe('v2');
+    expect(report.fixtures).toHaveLength(15);
     expect(JSON.stringify(report)).not.toContain('PRIVATE_WORKBENCH_TEXT');
   });
 }
@@ -507,26 +511,26 @@ test('the reported 1.7B first-case failure is recorded while case two runs', asy
     .selectOption('Qwen3-1.7B-q4f16_1-MLC');
   await page.getByRole('button', { name: 'Load model' }).click();
   await expect(page.getByRole('status')).toContainText('Ready on device');
-  await page.getByRole('button', { name: 'Run 5 examples' }).click();
+  await page.getByRole('button', { name: 'Run 15 examples' }).click();
 
   await expect(
     page.getByText('Recorded failure — run continues:'),
   ).toBeVisible();
   await expect(page.getByRole('status')).toContainText(
-    'Evaluating 2/5 · Address & date of birth',
+    'Evaluating 2/15 · Address & date of birth',
   );
   await expect(page.locator('.evaluation-progress')).toContainText(
-    'Running case 2 of 5: Address & date of birth',
+    'Running case 2 of 15: Address & date of birth',
   );
   await expect(page.getByText('CASES PROCESSED').locator('..')).toContainText(
-    '1 / 5',
+    '1 / 15',
   );
 
   await expect(page.getByRole('status')).toContainText('Ready on device');
-  await expect(page.locator('tbody tr')).toHaveCount(5);
+  await expect(page.locator('tbody tr')).toHaveCount(15);
   await expect(page.getByText('Failed:', { exact: false })).toHaveCount(1);
   await expect(page.getByText('CASES PROCESSED').locator('..')).toContainText(
-    '5 / 5',
+    '15 / 15',
   );
 
   await page.getByRole('button', { name: 'Export results' }).click();
@@ -538,7 +542,7 @@ test('the reported 1.7B first-case failure is recorded while case two runs', asy
     ))!,
   );
   expect(report.complete).toBe(false);
-  expect(report.results).toHaveLength(5);
+  expect(report.results).toHaveLength(15);
   expect(report.results[0].error).toContain('did not match');
   expect(report.results[0].diagnostics.rawContent).toContain(
     '"text":"email@example.com"',
@@ -558,7 +562,7 @@ test('runtime failure preserves an incomplete evaluation report after unload', a
   await page.getByRole('link', { name: '02 Evaluation' }).click();
   await page.getByRole('button', { name: 'Load model' }).click();
   await expect(page.getByRole('status')).toContainText('Ready on device');
-  await page.getByRole('button', { name: 'Run 5 examples' }).click();
+  await page.getByRole('button', { name: 'Run 15 examples' }).click();
 
   await expect(page.getByRole('status')).toContainText('Not loaded');
   await expect(page.getByRole('alert')).toContainText(

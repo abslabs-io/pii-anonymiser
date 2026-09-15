@@ -1,6 +1,8 @@
 import { chromium, expect, test } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { anonymise } from '../../src/core/anonymise';
+import type { Fixture } from '../../src/core/samples';
 
 type Result = {
   score?: {
@@ -11,12 +13,14 @@ type Result = {
     extra: number;
   };
   durationMs?: number;
+  diagnostics?: { durationMs?: number };
   error?: string;
 };
 
 type Report = {
   timestamp: string;
   complete: boolean;
+  fixtures: Fixture[];
   results: Result[];
   runner?: unknown;
 };
@@ -59,6 +63,10 @@ test(`evaluate ${selectedModel} through ${modelRuntime} in the browser`, async (
         ? 'chrome'
         : undefined,
     headless,
+    ignoreDefaultArgs:
+      modelRuntime === 'gemini-nano'
+        ? ['--disable-background-networking', '--disable-component-update']
+        : undefined,
     viewport: { width: 1280, height: 900 },
     args:
       softwareGpu && modelRuntime !== 'gemini-nano'
@@ -103,40 +111,43 @@ test(`evaluate ${selectedModel} through ${modelRuntime} in the browser`, async (
       .catch(() => {});
   }, 15_000);
   try {
+    console.log('Model eval: opening evaluation page');
     await page.goto(`/#/${modelRuntime}/evaluation`);
+    console.log('Model eval: selecting model');
     await page.getByLabel('Model', { exact: true }).selectOption(selectedModel);
     await expect(
       page.getByRole('button', { name: 'Load model' }),
     ).toBeEnabled();
+    console.log('Model eval: starting model load');
     await page.getByRole('button', { name: 'Load model' }).click();
+    console.log('Model eval: waiting for model load');
     await expect(
       page
         .getByRole('button', { name: 'Unload model', exact: true })
         .or(page.getByRole('alert')),
     ).toBeVisible({ timeout: 10 * 60_000 });
-    await expect(page.getByRole('alert')).toHaveCount(0);
+    const loadAlert = page.getByRole('alert');
+    if (await loadAlert.isVisible())
+      throw new Error(
+        `Model load failed: ${(await loadAlert.textContent())?.trim() ?? 'Unknown browser error'}`,
+      );
     await expect(page.getByRole('status')).toContainText('Ready on device', {
       timeout: 10 * 60_000,
     });
-    await page.getByRole('button', { name: 'Run 5 examples' }).click();
+    await page.getByRole('button', { name: 'Run 15 examples' }).click();
     await expect(
       page.getByRole('button', { name: 'Export results' }),
     ).toBeEnabled({ timeout: 12 * 60_000 });
     console.log('Model eval: export is ready');
-    await page
+    const reportText = await page
       .getByRole('button', { name: 'Export results' })
-      .evaluate((button: HTMLButtonElement) => button.click());
+      .evaluate((button: HTMLButtonElement) => {
+        button.click();
+        return (window as typeof window & { __piiLabEvaluation?: string })
+          .__piiLabEvaluation;
+      });
     console.log('Model eval: export requested');
     const temporaryPath = testInfo.outputPath('evaluation.json');
-    const reportText = await page
-      .waitForFunction(
-        () =>
-          (window as typeof window & { __piiLabEvaluation?: string })
-            .__piiLabEvaluation,
-        undefined,
-        { timeout: 10_000 },
-      )
-      .then((handle) => handle.jsonValue());
     if (typeof reportText !== 'string')
       throw new Error('The app did not produce an evaluation report.');
     console.log('Model eval: report captured');
@@ -160,7 +171,7 @@ test(`evaluate ${selectedModel} through ${modelRuntime} in the browser`, async (
         failedCases: 0,
       },
     );
-    const summary = {
+    const appScoredSummary = {
       ...totals,
       precision:
         totals.detected === 0
@@ -174,7 +185,8 @@ test(`evaluate ${selectedModel} through ${modelRuntime} in the browser`, async (
           ? 0
           : (2 * totals.correct) / (totals.detected + totals.expected),
       totalDurationMs: report.results.reduce(
-        (sum, result) => sum + (result.durationMs ?? 0),
+        (sum, result) =>
+          sum + (result.durationMs ?? result.diagnostics?.durationMs ?? 0),
         0,
       ),
       strictPass:
@@ -182,6 +194,23 @@ test(`evaluate ${selectedModel} through ${modelRuntime} in the browser`, async (
         totals.failedCases === 0 &&
         totals.missed === 0 &&
         totals.extra === 0,
+    };
+    const expectedAcrossSuite = report.fixtures.reduce(
+      (sum, fixture) =>
+        sum + anonymise(fixture.text, fixture.expected).spans.length,
+      0,
+    );
+    const summary = {
+      ...appScoredSummary,
+      expected: expectedAcrossSuite,
+      missed: expectedAcrossSuite - totals.correct,
+      recall:
+        expectedAcrossSuite === 0 ? 1 : totals.correct / expectedAcrossSuite,
+      f1:
+        totals.correct === 0
+          ? 0
+          : (2 * totals.correct) / (totals.detected + expectedAcrossSuite),
+      appScored: appScoredSummary,
     };
     report.runner = {
       browserVersion: context.browser()?.version() ?? 'unknown',
@@ -205,7 +234,7 @@ test(`evaluate ${selectedModel} through ${modelRuntime} in the browser`, async (
       contentType: 'application/json',
     });
     console.log(
-      `Model eval: ${totals.correct}/${totals.expected} correct, ${totals.missed} missed, ${totals.extra} extra; report: ${reportPath}`,
+      `Model eval: ${summary.correct}/${summary.expected} correct, ${summary.missed} missed, ${summary.extra} extra; report: ${reportPath}`,
     );
 
     if (strict) {

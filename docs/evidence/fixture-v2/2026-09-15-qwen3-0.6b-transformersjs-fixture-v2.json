@@ -1,0 +1,125 @@
+{
+  "experiment": "PII Lab",
+  "source": "Reviewed summary of an automated fixture-v2 run launched from WSL through Windows Node and headless Windows Chrome. The full generated report remains in the ignored model-evaluation-results directory because it contains raw model responses.",
+  "model": "onnx-community/Qwen3-0.6B-ONNX#q4f16",
+  "runtime": "Transformers.js 4.2.0",
+  "timestamp": "2026-09-15T20:48:36.499Z",
+  "environment": {
+    "browser": "Chrome 152.0.7977.83",
+    "operatingSystem": "Windows through WSL automation",
+    "headless": true,
+    "gpu": "unknown",
+    "note": "The runtime model confirms shader-f16 availability. No GPU adapter details were captured."
+  },
+  "fixtureSet": "v2",
+  "promptVersion": "v2",
+  "responseParserVersion": "transformersjs-json-fence-v2",
+  "generationConstraint": "prompt-only",
+  "temperature": 0,
+  "decodingNote": "The worker uses greedy generation with do_sample false, so temperature is not consulted.",
+  "thinking": false,
+  "appComplete": false,
+  "processedCases": 15,
+  "completedModelResponses": 15,
+  "runtimeFailures": 0,
+  "responseValidationFailures": 2,
+  "exactSpanValidationFailures": 1,
+  "documentsWithOutput": 12,
+  "appScoredCases": {
+    "cases": 12,
+    "expectedSpans": 23,
+    "detectedSpans": 35,
+    "correctSpans": 5,
+    "missedSpans": 18,
+    "extraSpans": 30,
+    "precision": 0.14285714285714285,
+    "recall": 0.21739130434782608,
+    "f1": 0.1724137931034483
+  },
+  "reviewedAllCases": {
+    "method": "The twelve accepted cases use app scores. The three completed rejected responses were reviewed using the established occurrence-level method: exact duplicate literal/category pairs are deduplicated, returned literals are expanded to their source occurrences, unsupported categories and unmatched literals count as extras, and only exact expected span/category pairs count as correct.",
+    "expectedSpans": 30,
+    "detectedSpans": 54,
+    "correctSpans": 10,
+    "missedSpans": 20,
+    "extraSpans": 44,
+    "precision": 0.18518518518518517,
+    "recall": 0.3333333333333333,
+    "f1": 0.23809523809523808,
+    "strictPass": false
+  },
+  "endToEndOutput": {
+    "method": "Rejected documents produce no partial output. Their seven expected occurrences therefore count as missed, while their rejected raw detections do not count as output replacements.",
+    "expectedSpans": 30,
+    "outputSpans": 35,
+    "correctSpans": 5,
+    "missedSpans": 25,
+    "extraSpans": 30,
+    "precision": 0.14285714285714285,
+    "recall": 0.16666666666666666,
+    "f1": 0.15384615384615385,
+    "documentsWithOutput": 12,
+    "documents": 15
+  },
+  "timing": {
+    "totalDurationMs": 102941.19999992847,
+    "meanDurationMs": 6862.746666661898,
+    "medianDurationMs": 6469.699999928474,
+    "outputTokens": 1517,
+    "note": "Timing includes all fifteen completed generations, including the three responses rejected by validation."
+  },
+  "validationFailureReview": [
+    {
+      "name": "Contact details",
+      "error": "The response used the unsupported TEXT category.",
+      "reviewedScore": {
+        "expected": 4,
+        "detected": 7,
+        "correct": 4,
+        "missed": 0,
+        "extra": 3
+      }
+    },
+    {
+      "name": "Account reference",
+      "error": "One returned phrase did not occur in the source; the other returned spans and categories did not match the expected entities.",
+      "reviewedScore": {
+        "expected": 2,
+        "detected": 3,
+        "correct": 0,
+        "missed": 2,
+        "extra": 3
+      }
+    },
+    {
+      "name": "Name parts with ordinary meanings",
+      "error": "The response used the unsupported ACTION category.",
+      "reviewedScore": {
+        "expected": 1,
+        "detected": 9,
+        "correct": 1,
+        "missed": 0,
+        "extra": 8
+      }
+    }
+  ],
+  "notableAcceptedCases": [
+    "No accepted case was perfect.",
+    "The first clean-negative case produced three extra replacements; the second produced two.",
+    "The multiline address case found one of two expected spans and added four extras.",
+    "Unicode, international phone, ID/account distinction, birth-date distinction, and non-Latin cases each had zero correct exact span/category matches.",
+    "The multiline-address, repeated-account, and token-collision cases each contributed one correct span."
+  ],
+  "comparisonWithWebLLMFixtureV2": {
+    "endToEndF1": {
+      "webllm": 0.4533333333333333,
+      "transformersjs": 0.15384615384615385
+    },
+    "totalDurationMs": {
+      "webllm": 165513.59999990463,
+      "transformersjs": 102941.19999992847
+    },
+    "note": "Both runs used the same fixture set, prompt, Windows Chrome version, machine, and q4f16 intent. They used different runtime formats and implementations, so this compares complete technology paths rather than isolating inference-engine speed alone."
+  },
+  "conclusion": "The Transformers.js 0.6B path completed all fifteen generations and was faster than WebLLM in these runs, but its detection and end-to-end output were substantially worse. Only 5/30 expected occurrences appeared in published output, alongside 30 incorrect replacements."
+}
